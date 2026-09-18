@@ -1,0 +1,4 @@
+variant_a,variant_b,n_a,n_b,median_a,median_b,U,p,significant_0.05
+mutate_child,mutate_parent,3,3,17.966,17.966,4.5,1.0,False
+mutate_child,random_search,3,3,17.966,17.966,4.5,1.0,False
+mutate_parent,random_search,3,3,17.966,17.966,4.5,1.0,False

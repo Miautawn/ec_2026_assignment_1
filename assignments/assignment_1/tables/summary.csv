@@ -1,0 +1,4 @@
+variant,runs,mean,std,min,median,max,mean_final_size
+mutate_child,3,17.765,0.39,17.316,17.966,18.014,21.0
+mutate_parent,3,17.765,0.39,17.316,17.966,18.014,21.0
+random_search,3,17.765,0.39,17.316,17.966,18.014,21.0
