@@ -1,5 +1,6 @@
 # Raw experiment output: ~8 MB per run, ~250 MB for the full 3x10 grid.
 results/
+local-runs/
 
 # The tidy per-generation frame is large and derived; the small summary
 # tables and the figures are kept, since they go into the report.

@@ -19,7 +19,7 @@ assignments/assignment_1/
 ├── target_bodies/                 the 5 target phenotypes, (DO NOT MODIFY)
 └── experiment/
     ├── config.py                  every tunable parameter, in one dataclass
-    ├── variants.py                the EA subclasses + registry (CURRENTLY ONLY HAS STUB EAs)
+    ├── variants.py                mutation-order EAs and random-search baseline
     ├── fitness.py                 loads the targets, wraps the official fitness
     ├── runner.py                  executes the grid, one database per run
     ├── dataset.py                 parses all run databases into a single pandas dataframe
@@ -29,13 +29,13 @@ assignments/assignment_1/
 
 ---
 
-## 2. ⚠️ Swapping in the real EA
+## 2. EA variants
 
-> **All variants are registered in `experiment/variants.py`. Currently it only
-> holds mock EA algorithms. PLEASE EDIT WHEN REAL ONES ARRIVE
+All variants are implemented and registered in `experiment/variants.py`.
+See [METHODS.md](METHODS.md) for operators, parameters and budget accounting.
 
 ```python
-from my_ea import MutateChildEA, MutateParentEA, RandomSearch
+from experiment.variants import MutateChildEA, MutateParentEA, RandomSearch
 
 
 VARIANTS = {
@@ -45,9 +45,8 @@ VARIANTS = {
 }
 ```
 
-Right all EA slots point at `StubEA`, a throwaway with no crossover and
-no mutation. It exists only so the pipeline can be tested — **its numbers are
-meaningless**, and all three variants currently produce identical results.
+Earlier runs used identical stubs for all three variants. Discard those results
+and regenerate the tables and figures before using them in the report.
 
 A variant is an **`ariel.ec.EA` subclass** whose `__init__` takes
 `(seed, db_path, cfg)`. This allows us to simply call the inherited `.run()` to
@@ -69,11 +68,13 @@ Important to remember when integrating with other EA classes:
 ## 3. Running it
 
 ```bash
-# fast end-to-end check of every code path (~10 s)
-python run_experiment.py --smoke
+# from the repository root
+uv sync --frozen
+uv run pytest assignments/assignment_1/tests
+uv run assignments/assignment_1/run_experiment.py --smoke
 
-# the real thing (~15 min single-process)
-python run_experiment.py
+# full experiment; runtime depends on the machine
+uv run assignments/assignment_1/run_experiment.py
 ```
 
 Each invocation recomputes everything from scratch.
