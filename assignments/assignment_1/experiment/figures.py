@@ -177,36 +177,44 @@ def genome_size(tidy: pd.DataFrame, facts: TargetSetFacts, out: Path) -> Path:
 # --------------------------------------------------------------------------- #
 
 def target_set(facts: TargetSetFacts, out: Path) -> Path:
-    """How far apart the targets are, and where the size optimum sits.
+    """Idealised size-only fitness against body size.
+
+    Editing a body of n modules into a target of m costs at least |n - m|, so
+    feeding those bounds through the real fitness formula shows which body
+    size the metric pulls towards. The mean term is a genuine lower bound; the
+    std term is indicative, so the minimum is an estimate, not a proof. The
+    provable floor (triangle inequality over the target set) is drawn for
+    reference.
     """
-    fig, (left, right) = plt.subplots(1, 2, figsize=(7.0, 3.2))
-
-    image = left.imshow(facts.pairwise, cmap="viridis")
-    labels = [f"{i}\n(n={n})" for i, n in enumerate(facts.sizes)]
-    left.set_xticks(range(len(facts.sizes)), labels, fontsize=7)
-    left.set_yticks(range(len(facts.sizes)), labels, fontsize=7)
-    for i in range(len(facts.sizes)):
-        for j in range(len(facts.sizes)):
-            left.text(j, i, f"{facts.pairwise[i, j]:.1f}", ha="center", va="center",
-                      fontsize=7, color="white" if facts.pairwise[i, j] < 15 else "black")
-    left.set_title(f"Pairwise TED between targets\n(mean {facts.mean_pairwise:.2f})",
-                   fontsize=9)
-    fig.colorbar(image, ax=left, fraction=0.046)
-
     sizes = np.arange(1, 41)
     curve = [
         np.mean([abs(n - m) for m in facts.sizes])
         + np.std([abs(n - m) for m in facts.sizes])
         for n in sizes
     ]
-    right.plot(sizes, curve, color="#0072B2", linewidth=1.8)
-    right.axvline(facts.idealised_best_size, color="black", linestyle=":", linewidth=1.0,
-                  label=f"optimum: {facts.idealised_best_size} modules")
-    right.axhline(facts.fitness_floor, color="#D55E00", linestyle="--", linewidth=1.0,
-                  label=f"provable floor: {facts.fitness_floor:.2f}")
-    _style_axes(right, "Body size (modules)", "Idealised fitness",
-                "Size-only fitness estimate")
-    right.legend(frameon=False, fontsize=8)
+
+    fig, ax = plt.subplots(figsize=FIGSIZE)
+    ax.plot(sizes, curve, color="#0072B2", linewidth=1.8,
+            label="idealised size-only fitness")
+    ax.axvline(
+        facts.idealised_best_size, color="black", linestyle=":", linewidth=1.0,
+        label=f"estimated optimum: {facts.idealised_best_size} modules",
+    )
+    ax.axhline(
+        facts.fitness_floor, color="#D55E00", linestyle="--", linewidth=1.0,
+        label=f"provable floor: {facts.fitness_floor:.2f}",
+    )
+    for size in facts.sizes:
+        ax.axvline(size, color="grey", alpha=0.35, linewidth=0.8)
+    ax.text(
+        0.98, 0.04,
+        f"grey lines: target sizes {list(facts.sizes)}\n"
+        f"mean pairwise TED between targets: {facts.mean_pairwise:.2f}",
+        transform=ax.transAxes, ha="right", va="bottom", fontsize=7, color="#444444",
+    )
+    _style_axes(ax, "Body size (modules)", "Idealised fitness (lower is better)",
+                "Where the fitness metric pulls body size")
+    ax.legend(frameon=False, fontsize=8, loc="upper center")
     return _save(fig, out / "fig5_target_set.png")
 
 

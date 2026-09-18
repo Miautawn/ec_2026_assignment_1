@@ -1,13 +1,12 @@
 #!/usr/bin/env python
 """Entry point for Standard Assignment 1's experiment.
 
-    python run_experiment.py targets          # bounds from the target set alone
-    python run_experiment.py run --smoke      # fast end-to-end check (~1 min)
-    python run_experiment.py all              # full grid, then tables + figures
-    python run_experiment.py analyse          # re-analyse without re-running
+    python run_experiment.py            # full grid, then tables + figures
+    python run_experiment.py --smoke    # same code paths, ~30x less compute
 
 Results land in `results/<variant>/seed_NN/database.db`, figures in `figures/`,
-tables in `tables/`. """
+tables in `tables/`.
+"""
 
 from __future__ import annotations
 
