@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import argparse
 import sys
-from dataclasses import replace
 from pathlib import Path
 
 # needed to reach the local experimentaiton utils
@@ -57,9 +56,9 @@ def analyse(cfg: ExperimentConfig) -> None:
 
     print("\nFinal best fitness per variant (across independent runs):")
     print(summary.to_string())
-    print(f"\n  Best possible fitness: {target_body_facts.fitness_floor:.3f}")
+    print(f"\n  Fitness lower bound (not an attained optimum): {target_body_facts.fitness_floor:.3f}")
 
-    print("\nPairwise Mann-Whitney U on final best fitness:")
+    print("\nPaired sign tests on final best fitness (Holm correction):")
     print(tests.to_string(index=False) if not tests.empty else "  (nothing to compare)")
 
     print()
