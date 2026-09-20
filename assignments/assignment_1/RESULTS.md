@@ -13,8 +13,9 @@ These replace the earlier smoke-test outputs.
 `tables/final_per_seed.csv` contains the 30 final outcomes.
 Lower fitness is better.
 
-The tables and figures use the existing experiment analysis unchanged.
-`pairwise_tests.csv` contains its unpaired Mann–Whitney tests, not paired tests.
+`pairwise_tests.csv` uses exact paired sign tests with Holm correction,
+matching the report. This replaces the earlier unpaired Mann–Whitney analysis;
+the runs, descriptive statistics and figures are unchanged.
 The raw SQLite databases are kept locally and are not included here (205 MB).
 
 To rerun from the repository root:

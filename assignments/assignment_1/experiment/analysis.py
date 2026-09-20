@@ -135,31 +135,41 @@ def summary_table(final: pd.DataFrame) -> pd.DataFrame:
     return table.round(3)
 
 def pairwise_tests(final: pd.DataFrame) -> pd.DataFrame:
-    """Mann-Whitney U on end-of-run fitness for every pair of variants.
-
-    Non-parametric because run outcomes are not reliably normal and N is
-    small.
-    """
+    """Exact paired sign tests by seed, with Holm correction across pairs."""
+    if final.duplicated(["variant", "seed"]).any():
+        raise ValueError("Expected one final outcome per variant and seed")
+    if not np.isfinite(final["best_so_far"].to_numpy()).all():
+        raise ValueError("Final fitness must be finite")
     variants = sorted(final["variant"].unique())
 
     rows: list[dict[str, object]] = []
     for left, right in itertools.combinations(variants, 2):
-        a = final.loc[final["variant"] == left, "best_so_far"].to_numpy()
-        b = final.loc[final["variant"] == right, "best_so_far"].to_numpy()
-        if len(a) == 0 or len(b) == 0:
-            continue
-        result = stats.mannwhitneyu(a, b, alternative="two-sided")
+        a = final.loc[final["variant"] == left].set_index("seed")["best_so_far"].sort_index()
+        b = final.loc[final["variant"] == right].set_index("seed")["best_so_far"].sort_index()
+        if not a.index.equals(b.index):
+            raise ValueError(f"Seed sets differ for {left} and {right}")
+        differences = (a - b).to_numpy()
+        wins = int(np.count_nonzero(differences < 0))
+        losses = int(np.count_nonzero(differences > 0))
+        non_ties = wins + losses
+        p = stats.binomtest(wins, non_ties, p=0.5).pvalue if non_ties else 1.0
         rows.append(
             {
                 "variant_a": left,
                 "variant_b": right,
-                "n_a": len(a),
-                "n_b": len(b),
+                "pairs": len(a),
+                "wins_a": wins,
+                "wins_b": losses,
+                "ties": len(a) - non_ties,
+                "mean_difference_a_minus_b": float(differences.mean()),
                 "median_a": round(float(np.median(a)), 3),
                 "median_b": round(float(np.median(b)), 3),
-                "U": float(result.statistic),
-                "p": float(result.pvalue),
-                "significant_0.05": bool(result.pvalue < 0.05),
+                "p": float(p),
             }
         )
+    adjusted = 0.0
+    for rank, index in enumerate(sorted(range(len(rows)), key=lambda i: rows[i]["p"])):
+        adjusted = max(adjusted, min(1.0, (len(rows) - rank) * rows[index]["p"]))
+        rows[index]["p_holm"] = adjusted
+        rows[index]["significant_0.05"] = adjusted < 0.05
     return pd.DataFrame(rows)

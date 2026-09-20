@@ -4,7 +4,7 @@ Single source of truth for every experiment parameter.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any
 
@@ -49,8 +49,7 @@ class ExperimentConfig:
 
     num_modules: int = 20
 
-    # IDK these might be hardcoded in the AE variants
-    # but for now let's keep them here!
+    # Shared variation and selection settings for both EAs.
     crossover_rate: float = 0.9
     mutation_rate: float = 0.9
     tournament_size: int = 3
@@ -89,4 +88,6 @@ SMOKE = ExperimentConfig(
     population_size=20,
     generations=10,
     offspring_per_generation=20,
+    results_dir=ASSIGNMENT_DIR / "local-runs" / "smoke" / "results",
+    figures_dir=ASSIGNMENT_DIR / "local-runs" / "smoke" / "figures",
 )

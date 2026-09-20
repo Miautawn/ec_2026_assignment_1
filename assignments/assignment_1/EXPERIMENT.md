@@ -156,15 +156,15 @@ body. This might be nice because aggregated fitness hides *which* target a compr
 | `per_generation.csv` | the tidy frame behind every figure: one row per (variant, seed, generation), with best/mean/worst fitness, best-so-far, population size, mean module count |
 | `final_per_seed.csv` | one row per run - **the unit of statistical analysis** |
 | `summary.csv` | per-variant mean, std, min, median, max of final fitness |
-| `pairwise_tests.csv` | Mann–Whitney U for every pair of variants |
+| `pairwise_tests.csv` | Exact paired sign tests by seed, with Holm correction |
 
-I googled how we cood add credence to whether our observed results are trully
-different or not (looking past the visuals). Naturally statistical tests came
-up, but with N = 10, there's kinda not a lot of data. So **Mann–Whitney U**
-popped up as a method that does not assume normality.
-Its p-value is the probability of seeing a separation this large if the two
-variants were actually identical. I'm not a stats person so I have no idea if
-I'm applying it correctly or not xD
+Runs share initial populations by seed, so the final analysis pairs outcomes
+by seed. The two-sided sign test counts wins and losses, excluding exact ties.
+It tests equal win probability, not equality of means. Holm correction covers
+all three comparisons. With ten pairs it has limited power and ignores the
+magnitude of each difference.
+
+Smoke outputs go to `local-runs/smoke/`, leaving the final figures and tables intact.
 
 ---
 
