@@ -19,20 +19,31 @@ See [the brief](reference/Assignment2.pdf) for the full requirements. Course rul
 ## Layout
 
 ```text
-reference/   official brief and unchanged upstream demo
-tests/       future Assignment 2 tests
+A2_template_2026.py   official upstream demo (random weights, no evolution)
+reference/   official PDF brief
+tests/       framework compatibility and demo smoke tests
 outputs/     generated files only; ignored except the README
 ```
 
 ## Template compatibility
 
-The [official demo](reference/A2_template_2026.py) is preserved for reference, **not a runnable implementation for our current checkout**.
+The [official demo](A2_template_2026.py) and its required framework update are now included unchanged from upstream. It is runnable, but is not an EA implementation.
 
 Source: [upstream commit a435b192](https://github.com/AndrzejSzczepura/EvolutionaryComputing2026/blob/a435b192066d258096eba3f43f91c43b74cf11fe/assignments/assignment_2/A2_template_2026.py), inspected 23 September 2026.
 
-- It imports `ariel.ec.set_seed`, which our current framework does not export. An upstream compatibility update is needed before it can run.
+- The official update adds `ariel.ec.set_seed` and removes random initial control values from the headless runner.
 - It defaults to `gecko()`, whereas the brief requires a John Set body. Follow the brief or ask the TA before using the demo body.
 - Its default mode launches a viewer. Final search evaluations need headless execution.
 - It evaluates random weights only; it does not implement an EA.
 
-The framework and Assignment 1 are unchanged.
+No team-written changes were made to `src/ariel`. Assignment 1 code and saved results are unchanged.
+
+From the repository root:
+
+```sh
+uv run pytest assignments/assignment_1/tests assignments/assignment_2/tests
+# Interactive demo (opens a viewer):
+uv run assignments/assignment_2/A2_template_2026.py
+```
+
+The tests run the demo headlessly with a short episode and check seed replay. They do not establish controller quality or replace final experiments.
