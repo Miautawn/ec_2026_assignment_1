@@ -1,0 +1,9 @@
+# Generated experiment output; preserve the folder guide.
+outputs/*
+!outputs/README.md
+__pycache__/
+.pytest_cache/
+*.py[cod]
+
+# Keep the official brief despite the repository-wide PDF ignore.
+!reference/Assignment2.pdf
