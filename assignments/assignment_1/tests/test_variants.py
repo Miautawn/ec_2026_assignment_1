@@ -12,7 +12,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from experiment import dataset, variants
+from experiment import variants
+from harness import dataset
 from experiment.config import ExperimentConfig
 from ariel.ec.genotypes.tree.tree_genome import TreeGenome
 from ariel.ec.genotypes.tree.validation import validate_genome_dict
@@ -45,7 +46,7 @@ def test_budget_reproducibility_and_database(name, cfg, tmp_path, monkeypatch):
     monkeypatch.setattr(variants, "evaluate_body", counted)
     for repeat in range(2):
         path = tmp_path / f"{repeat}.db"
-        algorithm = variants.build(name, 7, path, cfg)
+        algorithm = variants.VARIANTS[name].build(7, path, cfg)
         algorithm.run()
         algorithm.engine.dispose()
         records = rows(path)
@@ -69,7 +70,7 @@ def test_budget_reproducibility_and_database(name, cfg, tmp_path, monkeypatch):
 )
 def test_order_and_parent_copying(name, expected, cfg, tmp_path, monkeypatch):
     cfg = replace(cfg, offspring_per_generation=2)
-    algorithm = variants.build(name, 0, tmp_path / "order.db", cfg)
+    algorithm = variants.VARIANTS[name].build(0, tmp_path / "order.db", cfg)
     algorithm.fetch_population()
     population = algorithm.population
     before = deepcopy([ind.genotype for ind in population])
@@ -130,14 +131,14 @@ def test_all_variants_start_identically(cfg, tmp_path):
     initial = []
     for name in variants.VARIANTS:
         path = tmp_path / f"{name}.db"
-        algorithm = variants.build(name, 19, path, cfg)
+        algorithm = variants.VARIANTS[name].build(19, path, cfg)
         initial.append(rows(path))
         algorithm.engine.dispose()
     assert initial[0] == initial[1] == initial[2]
 
 
 def test_random_search_does_not_use_parents(cfg, tmp_path):
-    algorithm = variants.build("random_search", 0, tmp_path / "random.db", cfg)
+    algorithm = variants.VARIANTS["random_search"].build(0, tmp_path / "random.db", cfg)
     algorithm.fetch_population()
     parents = algorithm.population
     variants.seed_everything(9)
@@ -154,7 +155,7 @@ def test_random_search_does_not_use_parents(cfg, tmp_path):
 @pytest.mark.parametrize("name", variants.VARIANTS)
 def test_single_module_zero_generations(name, cfg, tmp_path):
     cfg = replace(cfg, num_modules=1, generations=0)
-    algorithm = variants.build(name, 0, tmp_path / "zero.db", cfg)
+    algorithm = variants.VARIANTS[name].build(0, tmp_path / "zero.db", cfg)
     algorithm.run()
     assert len(rows(tmp_path / "zero.db")) == cfg.population_size
     algorithm.engine.dispose()
@@ -173,6 +174,5 @@ def test_single_module_zero_generations(name, cfg, tmp_path):
 )
 def test_bad_config_rejected(field, value, cfg, tmp_path):
     with pytest.raises(ValueError):
-        variants.build(
-            "mutate_child", 0, tmp_path / "bad.db", replace(cfg, **{field: value})
+        variants.VARIANTS["mutate_child"].build(0, tmp_path / "bad.db", replace(cfg, **{field: value})
         )

@@ -41,7 +41,7 @@ No team-written changes were made to `src/ariel`. Assignment 1 code and saved re
 From the repository root:
 
 ```sh
-uv run pytest assignments/assignment_1/tests assignments/assignment_2/tests
+uv run pytest assignments/harness/tests assignments/assignment_1/tests assignments/assignment_2/tests
 # Interactive demo (opens a viewer):
 uv run assignments/assignment_2/A2_template_2026.py
 ```

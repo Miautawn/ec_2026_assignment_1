@@ -13,18 +13,24 @@ the results from which we draw the report figures and tables.
 ## 1. Files
 
 ```
-assignments/assignment_1/
-├── run_experiment.py              entry point: run EAs, then analyse it
-├── tree_edit_distance.py          the assignment's fitness metric (DO NOT MODIFY)
-├── target_bodies/                 the 5 target phenotypes, (DO NOT MODIFY)
-└── experiment/
-    ├── config.py                  every tunable parameter, in one dataclass
-    ├── variants.py                mutation-order EAs and random-search baseline
-    ├── fitness.py                 loads the targets, wraps the official fitness
-    ├── runner.py                  executes the grid, one database per run
-    ├── dataset.py                 parses all run databases into a single pandas dataframe
-    ├── analysis.py                fitness floor, summary table, significance tests
-    └── figures.py                 utilities for creating report figures
+assignments/
+├── harness/                       shared with Assignment 2 (see harness/__init__.py)
+│   ├── config.py                  budget, seeds, output paths (BaseConfig)
+│   ├── variants.py                Variant registry entry, seeding, shared EA settings
+│   ├── runner.py                  executes the grid, one database per run
+│   ├── dataset.py                 parses all run databases into a single pandas dataframe
+│   ├── analysis.py                summary table, paired significance tests, CSV report
+│   └── figures.py                 convergence, final distribution, per-generation bands
+└── assignment_1/
+    ├── run_experiment.py          entry point: run EAs, then analyse it
+    ├── tree_edit_distance.py      the assignment's fitness metric (DO NOT MODIFY)
+    ├── target_bodies/             the 5 target phenotypes, (DO NOT MODIFY)
+    └── experiment/
+        ├── config.py              A1 parameters, on top of BaseConfig
+        ├── variants.py            mutation-order EAs, random-search baseline, registry
+        ├── fitness.py             loads the targets, wraps the official fitness
+        ├── analysis.py            fitness floor, optimal-size estimate, module-count metric
+        └── figures.py             A1-only figures (bloat, size curve, champion breakdown)
 ```
 
 ---
@@ -35,15 +41,15 @@ All variants are implemented and registered in `experiment/variants.py`.
 See [METHODS.md](METHODS.md) for operators, parameters and budget accounting.
 
 ```python
-from experiment.variants import MutateChildEA, MutateParentEA, RandomSearch
-
-
 VARIANTS = {
-    "mutate_child":  MutateChildEA,
-    "mutate_parent": MutateParentEA,
-    "random_search": RandomSearch,
+    "mutate_child": Variant(MutateChildEA, "Mutate offspring (after crossover)", "#0072B2"),
+    "mutate_parent": Variant(MutateParentEA, "Mutate parents (before crossover)", "#D55E00"),
+    "random_search": Variant(RandomSearch, "Random search (baseline)", "#7F7F7F"),
 }
 ```
+
+Each `harness.variants.Variant` pairs the EA class with the label and colour
+every figure uses for it.
 
 Earlier runs used identical stubs for all three variants. Discard those results
 and regenerate the tables and figures before using them in the report.
@@ -57,7 +63,7 @@ Important to remember when integrating with other EA classes:
 
 1. **`is_maximisation=False`** — fitness is lower-is-better and ARIEL defaults
    to `True`. Wrong value makes `get_solution("best")` return the *worst* body,
-   with no error. (`_ea_kwargs` sets this for you.)
+   with no error. (`harness.variants.ea_settings` requires you to state it.)
 2. **Write to the `db_path` you are handed** — never fall back to
    `config.db_file_path`, or every run overwrites the same file.
 3. **Seed `random`, `numpy` *and* `torch`** before building the population.
@@ -102,7 +108,7 @@ results/<variant>/seed_NN/database.db
 results/<variant>/seed_NN/meta.json
 ```
 
-`dataset.py` then reads all 30 databases into a single tidy DataFrame — one row
+`harness/dataset.py` then reads all 30 databases into a single tidy DataFrame — one row
 per (variant, seed, generation) — and everything downstream reads only that.
 
 **The budget is measured in fitness evaluations, not generations or time**,
