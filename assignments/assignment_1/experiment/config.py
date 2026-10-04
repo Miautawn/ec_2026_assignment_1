@@ -1,32 +1,25 @@
 """
-Single source of truth for every experiment parameter.
+Single source of truth for every Assignment 1 parameter.
+
+Budget, seeds and output paths come from `harness.config.BaseConfig`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+
+from harness.config import BaseConfig
 
 ASSIGNMENT_DIR: Path = Path(__file__).resolve().parent.parent
 
+
 @dataclass(frozen=True)
-class ExperimentConfig:
+class ExperimentConfig(BaseConfig):
     """Everything needed to reproduce the experiment.
 
     Attributes
     ----------
-    variants
-        Names to run, resolved against `variants.VARIANTS`. The random-search
-        baseline is mandatory per the assignment brief, so keep it in the list.
-    seeds
-        One independent evoluation run per seed per variant.
-    population_size, generations, offspring_per_generation
-        The evaluation budget is
-        `population_size + generations * offspring_per_generation`, and it is
-        held *identical* across every variant experiment, otherwise
-        the comparisons will be unfair
-
     num_modules
         max genome tree size
 
@@ -41,11 +34,6 @@ class ExperimentConfig:
     """
 
     variants: tuple[str, ...] = ("mutate_child", "mutate_parent", "random_search")
-    seeds: tuple[int, ...] = tuple(range(10))
-
-    population_size: int = 50
-    generations: int = 100
-    offspring_per_generation: int = 50
 
     num_modules: int = 20
 
@@ -56,30 +44,6 @@ class ExperimentConfig:
 
     results_dir: Path = ASSIGNMENT_DIR / "results"
     figures_dir: Path = ASSIGNMENT_DIR / "figures"
-
-    @property
-    def evaluation_budget(self) -> int:
-        """Total fitness evaluations per run, identical across variants."""
-        return self.population_size + self.generations * self.offspring_per_generation
-
-    def run_dir(self, variant: str, seed: int) -> Path:
-        """Directory holding one run's database and metadata.
-        """
-        return self.results_dir / variant / f"seed_{seed:02d}"
-
-    def db_path(self, variant: str, seed: int) -> Path:
-        return self.run_dir(variant, seed) / "database.db"
-
-    def as_dict(self) -> dict[str, Any]:
-        """JSON-serialisable snapshot, written beside every run."""
-        out = asdict(self)
-        for key, value in out.items():
-            if isinstance(value, Path):
-                out[key] = str(value)
-            elif isinstance(value, tuple):
-                out[key] = list(value)
-        out["evaluation_budget"] = self.evaluation_budget
-        return out
 
 
 #: Quick end-to-end check: same code paths, ~30x less compute.

@@ -1,15 +1,9 @@
-"""Paired analysis and separation of smoke outputs from final results."""
-
-import sys
-from pathlib import Path
+"""Paired sign tests and the per-variant summary."""
 
 import pandas as pd
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
-from experiment.analysis import pairwise_tests
-from experiment.config import ExperimentConfig, SMOKE
+from harness.analysis import pairwise_tests, summary_table
 
 
 def outcomes():
@@ -51,7 +45,8 @@ def test_invalid_pairing():
         pairwise_tests(data)
 
 
-def test_smoke_does_not_overwrite_final_outputs():
-    full = ExperimentConfig()
-    assert SMOKE.results_dir.parent != full.results_dir.parent
-    assert SMOKE.figures_dir != full.figures_dir
+def test_summary_adds_one_column_per_metric():
+    data = outcomes().assign(mean_sigma=0.5, mean_fitness=1.0)
+    table = summary_table(data)
+    assert "mean_final_sigma" in table.columns
+    assert "mean_final_fitness" not in table.columns

@@ -14,11 +14,14 @@ import argparse
 import sys
 from pathlib import Path
 
-# needed to reach the local experimentaiton utils
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+# needed to reach the local experimentation code and the shared harness
+HERE = Path(__file__).resolve().parent
+sys.path[:0] = [str(HERE), str(HERE.parent)]
 
-from experiment import analysis, dataset, figures, runner  # noqa: E402
+from experiment import analysis, figures, variants  # noqa: E402
 from experiment.config import SMOKE, ExperimentConfig  # noqa: E402
+from harness import dataset, runner  # noqa: E402
+from harness.analysis import report  # noqa: E402
 
 
 def _print_header(title: str) -> None:
@@ -27,45 +30,19 @@ def _print_header(title: str) -> None:
 
 def run(cfg: ExperimentConfig) -> None:
     _print_header("RUNNING EXPERIMENT")
-    print(f"  variants  : {list(cfg.variants)}")
-    print(f"  seeds     : {list(cfg.seeds)}  ({len(cfg.seeds)} independent runs each)")
-    print(f"  budget    : {cfg.evaluation_budget} evaluations per run "
-          f"(pop {cfg.population_size} + {cfg.generations} gen x "
-          f"{cfg.offspring_per_generation} offspring)")
-    print(f"  results   : {cfg.results_dir}\n")
-    runner.run_all(cfg)
+    runner.run_all(cfg, variants.VARIANTS)
 
 
 def analyse(cfg: ExperimentConfig) -> None:
     _print_header("ANALYSIS")
 
     target_body_facts = analysis.target_set_facts()
-    tidy = dataset.load(cfg)
-    final = dataset.final_per_seed(tidy)
+    tidy = dataset.load(cfg, analysis.METRICS)
+    final, _, _ = report(tidy, cfg)
+    print(f"  Fitness lower bound (not an attained optimum): {target_body_facts.fitness_floor:.3f}\n")
 
-    tables_dir = cfg.results_dir.parent / "tables"
-    tables_dir.mkdir(parents=True, exist_ok=True)
-
-    tidy.to_csv(tables_dir / "per_generation.csv", index=False)
-    final.to_csv(tables_dir / "final_per_seed.csv", index=False)
-
-    summary = analysis.summary_table(final)
-    tests = analysis.pairwise_tests(final)
-    summary.to_csv(tables_dir / "summary.csv")
-    tests.to_csv(tables_dir / "pairwise_tests.csv", index=False)
-
-    print("\nFinal best fitness per variant (across independent runs):")
-    print(summary.to_string())
-    print(f"\n  Fitness lower bound (not an attained optimum): {target_body_facts.fitness_floor:.3f}")
-
-    print("\nPaired sign tests on final best fitness (Holm correction):")
-    print(tests.to_string(index=False) if not tests.empty else "  (nothing to compare)")
-
-    print()
     champions = dataset.champion_genotypes(cfg)
     figures.render_all(tidy, final, target_body_facts, champions, cfg)
-    print(f"\n  tables written to {tables_dir}")
-
 
 
 def main() -> None:

@@ -12,9 +12,6 @@ import random
 from copy import deepcopy
 from pathlib import Path
 
-import numpy as np
-import torch
-
 from ariel.ec import EA, EAOperation, Individual, Population
 from ariel.body_phenotypes.robogen_lite.config import (
     ALLOWED_FACES,
@@ -31,6 +28,7 @@ from ariel.ec.genotypes.tree.operators import (
 )
 from ariel.ec.genotypes.tree.tree_genome import TreeGenome
 from ariel.ec.genotypes.tree.validation import validate_genome_dict
+from harness.variants import Variant, ea_settings, seed_everything
 
 from .config import ExperimentConfig
 from .fitness import IS_MAXIMISATION, evaluate_body
@@ -39,13 +37,6 @@ from .fitness import IS_MAXIMISATION, evaluate_body
 # --------------------------------------------------------------------------- #
 #  Shared helpers
 # --------------------------------------------------------------------------- #
-
-
-def seed_everything(seed: int) -> None:
-    """Seed every RNG ARIEL may touch."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
 
 
 def random_individual(cfg: ExperimentConfig) -> Individual:
@@ -114,18 +105,6 @@ def _initial(cfg: ExperimentConfig) -> Population:
     )
 
 
-def _ea_kwargs(db_path: Path, cfg: ExperimentConfig) -> dict:
-    """Settings every variant must share for the comparison to be valid."""
-    return {
-        "num_steps": cfg.generations,
-        "first_generation_id": 0,
-        "is_maximisation": IS_MAXIMISATION,  # fitness is lower-is-better
-        "db_file_path": db_path,
-        "db_handling": "delete",  # the runner guarantees a clean directory
-        "quiet": True,
-    }
-
-
 # --------------------------------------------------------------------------- #
 #  Algorithms
 # --------------------------------------------------------------------------- #
@@ -162,7 +141,7 @@ class RandomSearch(EA):
                 EAOperation(evaluate),
                 EAOperation(self.keep_best),
             ],
-            **_ea_kwargs(db_path, cfg),
+            **ea_settings(db_path, cfg, is_maximisation=IS_MAXIMISATION),
         )
 
     def propose(self, population: Population) -> Population:
@@ -226,34 +205,13 @@ class MutateParentEA(_MutationOrderEA):
 #  Registry
 # --------------------------------------------------------------------------- #
 
-#: name -> EA subclass.
+#: name -> EA subclass, plus the label and colour every figure uses for it.
 VARIANTS = {
-    "mutate_child": MutateChildEA,
-    "mutate_parent": MutateParentEA,
-    "random_search": RandomSearch,
+    "mutate_child": Variant(
+        MutateChildEA, "Mutate offspring (after crossover)", "#0072B2"
+    ),
+    "mutate_parent": Variant(
+        MutateParentEA, "Mutate parents (before crossover)", "#D55E00"
+    ),
+    "random_search": Variant(RandomSearch, "Random search (baseline)", "#7F7F7F"),
 }
-
-#: One label and one colour per variant, so every figure reads as a set.
-VARIANT_LABELS = {
-    "mutate_child": "Mutate offspring (after crossover)",
-    "mutate_parent": "Mutate parents (before crossover)",
-    "random_search": "Random search (baseline)",
-}
-
-VARIANT_COLOURS = {
-    "mutate_child": "#0072B2",
-    "mutate_parent": "#D55E00",
-    "random_search": "#7F7F7F",
-}
-
-
-def build(variant: str, seed: int, db_path: Path, cfg: ExperimentConfig) -> EA:
-    return VARIANTS[variant](seed=seed, db_path=db_path, cfg=cfg)
-
-
-def label(variant: str) -> str:
-    return VARIANT_LABELS.get(variant, variant)
-
-
-def colour(variant: str) -> str:
-    return VARIANT_COLOURS.get(variant, "#333333")

@@ -11,10 +11,11 @@ import json
 import shutil
 import sqlite3
 import time
+from collections.abc import Mapping
 from pathlib import Path
 
-from . import variants
-from .config import ExperimentConfig
+from .config import BaseConfig
+from .variants import Variant
 
 META_FILENAME = "meta.json"
 
@@ -33,7 +34,9 @@ def count_evaluations(db_path: Path) -> int:
     return int(rows)
 
 
-def execute(variant: str, seed: int, cfg: ExperimentConfig) -> dict[str, object]:
+def execute(
+    variant: str, seed: int, cfg: BaseConfig, registry: Mapping[str, Variant]
+) -> dict[str, object]:
     """Run one complete EA loop from scratch and write its metadata."""
     run_dir = cfg.run_dir(variant, seed)
     db_path = cfg.db_path(variant, seed)
@@ -42,7 +45,7 @@ def execute(variant: str, seed: int, cfg: ExperimentConfig) -> dict[str, object]
     run_dir.mkdir(parents=True)
 
     started = time.perf_counter()
-    variants.build(variant, seed, db_path, cfg).run()
+    registry[variant].build(seed, db_path, cfg).run()
     elapsed = time.perf_counter() - started
 
     meta = {
@@ -57,15 +60,22 @@ def execute(variant: str, seed: int, cfg: ExperimentConfig) -> dict[str, object]
     return meta
 
 
-def run_all(cfg: ExperimentConfig) -> list[dict[str, object]]:
+def run_all(cfg: BaseConfig, registry: Mapping[str, Variant]) -> list[dict[str, object]]:
     """Run the whole grid."""
+    print(f"  variants  : {list(cfg.variants)}")
+    print(f"  seeds     : {list(cfg.seeds)}  ({len(cfg.seeds)} independent runs each)")
+    print(f"  budget    : {cfg.evaluation_budget} evaluations per run "
+          f"(pop {cfg.population_size} + {cfg.generations} gen x "
+          f"{cfg.offspring_per_generation} offspring)")
+    print(f"  results   : {cfg.results_dir}\n")
+
     grid = [(variant, seed) for variant in cfg.variants for seed in cfg.seeds]
     metas: list[dict[str, object]] = []
 
     for index, (variant, seed) in enumerate(grid, start=1):
         tag = f"[{index:>3}/{len(grid)}] {variant} seed={seed:02d}"
         print(f"{tag}  running...", flush=True)
-        meta = execute(variant, seed, cfg)
+        meta = execute(variant, seed, cfg, registry)
         print(f"{tag}  done in {meta['wall_seconds']}s, "
               f"{meta['evaluations']} evaluations")
         metas.append(meta)
