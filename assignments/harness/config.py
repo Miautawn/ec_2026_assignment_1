@@ -27,6 +27,10 @@ class BaseConfig:
         identical across every variant, otherwise the comparison is unfair.
     results_dir, figures_dir
         Where runs and figures land. Tables go beside `results_dir`.
+    workers
+        How many runs execute in parallel, one per process. None uses every
+        core on this machine; lower it to keep the machine usable. Does not
+        affect results: every run is independent and seeded.
     """
 
     variants: tuple[str, ...] = ()
@@ -38,6 +42,8 @@ class BaseConfig:
 
     results_dir: Path = Path("results")
     figures_dir: Path = Path("figures")
+
+    workers: int | None = None
 
     @property
     def evaluation_budget(self) -> int:

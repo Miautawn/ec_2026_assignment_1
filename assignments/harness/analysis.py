@@ -1,4 +1,4 @@
-"""Statistics for the report: summary table and paired significance tests.
+"""Statistics for the report: summary table and paired comparisons.
 
 Unit of analysis
 ----------------
@@ -6,11 +6,26 @@ Every test uses one observation per independent run, so N is the number of
 seeds. Treating individuals as observations would inflate N by a factor of
 thousands and produce meaningless p-values. Runs are paired by seed: variants
 sharing a seed start from the same initial population.
+
+What a comparison reports
+-------------------------
+For each pair of variants (A, B), on final best fitness (lower is better):
+
+  * how often each was lower (`a_lower`, `b_lower`, `ties`);
+  * the mean paired difference A - B with a 95% bootstrap confidence interval
+    -- the *size* of the effect and how precisely it is known. An interval
+    that excludes 0 shows a difference; a narrow one around 0 bounds how large
+    any difference could plausibly be (the argument for practical
+    equivalence); a wide one around 0 means "inconclusive";
+  * two paired tests, each Holm-corrected across all pairs as its own family:
+    the exact sign test (direction only) and the Wilcoxon signed-rank test
+    (also uses the sizes of the differences, so it has more power).
 """
 
 from __future__ import annotations
 
 import itertools
+from collections.abc import Sequence
 
 import numpy as np
 import pandas as pd
@@ -40,8 +55,63 @@ def summary_table(final: pd.DataFrame) -> pd.DataFrame:
     return table.round(3)
 
 
+#: Bootstrap settings. The seed makes every confidence interval reproducible.
+BOOTSTRAP_RESAMPLES = 10_000
+BOOTSTRAP_SEED = 0
+CONFIDENCE = 0.95
+
+
+def _holm(pvalues: Sequence[float]) -> list[float]:
+    """Holm-Bonferroni adjusted p-values, in the input order."""
+    adjusted = [0.0] * len(pvalues)
+    running = 0.0
+    for rank, index in enumerate(sorted(range(len(pvalues)), key=lambda i: pvalues[i])):
+        running = max(running, min(1.0, (len(pvalues) - rank) * pvalues[index]))
+        adjusted[index] = running
+    return adjusted
+
+
+def _sign_test(differences: np.ndarray) -> float:
+    """Exact two-sided sign test; ties carry no information and are dropped."""
+    lower = int(np.count_nonzero(differences < 0))
+    non_ties = lower + int(np.count_nonzero(differences > 0))
+    return float(stats.binomtest(lower, non_ties, p=0.5).pvalue) if non_ties else 1.0
+
+
+def _wilcoxon(differences: np.ndarray) -> float:
+    """Two-sided Wilcoxon signed-rank test; zero differences are dropped."""
+    if not np.any(differences):
+        return 1.0
+    return float(stats.wilcoxon(differences, zero_method="wilcox").pvalue)
+
+
+def mean_difference_ci(differences: np.ndarray) -> tuple[float, float]:
+    """95% bootstrap confidence interval for the mean paired difference.
+
+    BCa (bias-corrected and accelerated), which adjusts for skew -- worth it
+    with only ~10 seeds. Falls back to the percentile method if BCa is
+    undefined, and is a single point when every difference is identical.
+    """
+    if len(differences) < 2:
+        return (float("nan"), float("nan"))
+    if np.ptp(differences) == 0:
+        return (float(differences[0]), float(differences[0]))
+    for method in ("BCa", "percentile"):
+        interval = stats.bootstrap(
+            (differences,),
+            np.mean,
+            n_resamples=BOOTSTRAP_RESAMPLES,
+            confidence_level=CONFIDENCE,
+            method=method,
+            rng=np.random.default_rng(BOOTSTRAP_SEED),
+        ).confidence_interval
+        if np.isfinite([interval.low, interval.high]).all():
+            return (float(interval.low), float(interval.high))
+    return (float("nan"), float("nan"))
+
+
 def pairwise_tests(final: pd.DataFrame) -> pd.DataFrame:
-    """Exact paired sign tests by seed, with Holm correction across pairs."""
+    """Paired comparison of every pair of variants on final best fitness."""
     if final.duplicated(["variant", "seed"]).any():
         raise ValueError("Expected one final outcome per variant and seed")
     if not np.isfinite(final["best_so_far"].to_numpy()).all():
@@ -55,29 +125,30 @@ def pairwise_tests(final: pd.DataFrame) -> pd.DataFrame:
         if not a.index.equals(b.index):
             raise ValueError(f"Seed sets differ for {left} and {right}")
         differences = (a - b).to_numpy()
-        wins = int(np.count_nonzero(differences < 0))
-        losses = int(np.count_nonzero(differences > 0))
-        non_ties = wins + losses
-        p = stats.binomtest(wins, non_ties, p=0.5).pvalue if non_ties else 1.0
+        a_lower = int(np.count_nonzero(differences < 0))
+        b_lower = int(np.count_nonzero(differences > 0))
+        ci_low, ci_high = mean_difference_ci(differences)
         rows.append(
             {
                 "variant_a": left,
                 "variant_b": right,
                 "pairs": len(a),
-                "wins_a": wins,
-                "wins_b": losses,
-                "ties": len(a) - non_ties,
+                "a_lower": a_lower,
+                "b_lower": b_lower,
+                "ties": len(a) - a_lower - b_lower,
                 "mean_difference_a_minus_b": float(differences.mean()),
+                "ci95_low": ci_low,
+                "ci95_high": ci_high,
                 "median_a": round(float(np.median(a)), 3),
                 "median_b": round(float(np.median(b)), 3),
-                "p": float(p),
+                "p_sign": _sign_test(differences),
+                "p_wilcoxon": _wilcoxon(differences),
             }
         )
-    adjusted = 0.0
-    for rank, index in enumerate(sorted(range(len(rows)), key=lambda i: rows[i]["p"])):
-        adjusted = max(adjusted, min(1.0, (len(rows) - rank) * rows[index]["p"]))
-        rows[index]["p_holm"] = adjusted
-        rows[index]["significant_0.05"] = adjusted < 0.05
+
+    for test in ("p_sign", "p_wilcoxon"):
+        for row, adjusted in zip(rows, _holm([row[test] for row in rows]), strict=True):
+            row[f"{test}_holm"] = adjusted
     return pd.DataFrame(rows)
 
 
@@ -100,7 +171,8 @@ def report(
 
     print("\nFinal best fitness per variant (across independent runs):")
     print(summary.to_string())
-    print("\nPaired sign tests on final best fitness (Holm correction):")
+    print("\nPaired comparisons on final best fitness "
+          "(mean difference A - B with 95% bootstrap CI; Holm-corrected tests):")
     print(tests.to_string(index=False) if not tests.empty else "  (nothing to compare)")
     print(f"\n  tables written to {cfg.tables_dir}")
     return final, summary, tests

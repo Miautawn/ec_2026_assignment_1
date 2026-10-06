@@ -110,7 +110,7 @@ def target_set_facts() -> TargetSetFacts:
     )
 
 
-def module_count(genotype: dict) -> float:
+def module_count(genotype: dict, tags: dict) -> float:  # noqa: ARG001
     """Number of modules in a tree genotype -- the bloat metric."""
     return float(len(genotype["nodes"]))
 
