@@ -1,17 +1,19 @@
-"""Executes the (variant x seed) grid, one database per run.
+"""Runs every (EA, seed) pair, several at once, one database per run.
 
-Each run gets its own directory holding `database.db` plus a `meta.json`
-recording the variant, seed, wall time, realised evaluation count and the full
-config.
+Each run is independent and seeded, so the number of parallel workers never
+changes a result.
 """
 
 from __future__ import annotations
 
 import json
+import multiprocessing
+import os
 import shutil
 import sqlite3
 import time
 from collections.abc import Mapping
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 from .config import BaseConfig
@@ -60,25 +62,67 @@ def execute(
     return meta
 
 
+def resolve_workers(cfg: BaseConfig, n_runs: int) -> int:
+    """Worker processes to use: the configured count, or every core."""
+    workers = cfg.workers if cfg.workers is not None else (os.cpu_count() or 1)
+    if workers < 1:
+        msg = f"workers must be at least 1, got {workers}"
+        raise ValueError(msg)
+    return max(1, min(workers, n_runs))
+
+
+def _report(index: int, total: int, meta: dict[str, object]) -> None:
+    print(f"[{index:>3}/{total}] {meta['variant']} seed={meta['seed']:02d}  "
+          f"done in {meta['wall_seconds']}s, {meta['evaluations']} evaluations",
+          flush=True)
+
+
 def run_all(cfg: BaseConfig, registry: Mapping[str, Variant]) -> list[dict[str, object]]:
-    """Run the whole grid."""
+    """Run the whole grid, `cfg.workers` runs at a time.
+
+    Each run gets its own process. Processes use the "spawn" start method on every
+    OS, so Linux, macOS and Windows behave the same; the price is a few seconds of
+    start-up per worker. The calling script needs `if __name__ == "__main__":`,
+    because workers re-import it.
+    """
+    grid = [(variant, seed) for variant in cfg.variants for seed in cfg.seeds]
+    workers = resolve_workers(cfg, len(grid))
+
     print(f"  variants  : {list(cfg.variants)}")
     print(f"  seeds     : {list(cfg.seeds)}  ({len(cfg.seeds)} independent runs each)")
     print(f"  budget    : {cfg.evaluation_budget} evaluations per run "
           f"(pop {cfg.population_size} + {cfg.generations} gen x "
           f"{cfg.offspring_per_generation} offspring)")
-    print(f"  results   : {cfg.results_dir}\n")
+    print(f"  workers   : {workers} parallel process(es) for {len(grid)} runs")
+    print(f"  results   : {cfg.results_dir}\n", flush=True)
 
-    grid = [(variant, seed) for variant in cfg.variants for seed in cfg.seeds]
     metas: list[dict[str, object]] = []
+    if workers == 1:
+        for index, (variant, seed) in enumerate(grid, start=1):
+            metas.append(execute(variant, seed, cfg, registry))
+            _report(index, len(grid), metas[-1])
+    else:
+        context = multiprocessing.get_context("spawn")
+        with ProcessPoolExecutor(max_workers=workers, mp_context=context) as pool:
+            futures = {
+                pool.submit(execute, variant, seed, cfg, registry): (variant, seed)
+                for variant, seed in grid
+            }
+            try:
+                for index, future in enumerate(as_completed(futures), start=1):
+                    variant, seed = futures[future]
+                    try:
+                        metas.append(future.result())
+                    except Exception as error:
+                        msg = f"run {variant} seed={seed} failed: {error}"
+                        raise RuntimeError(msg) from error
+                    _report(index, len(grid), metas[-1])
+            except BaseException:
+                pool.shutdown(cancel_futures=True)  # don't wait for the rest
+                raise
 
-    for index, (variant, seed) in enumerate(grid, start=1):
-        tag = f"[{index:>3}/{len(grid)}] {variant} seed={seed:02d}"
-        print(f"{tag}  running...", flush=True)
-        meta = execute(variant, seed, cfg, registry)
-        print(f"{tag}  done in {meta['wall_seconds']}s, "
-              f"{meta['evaluations']} evaluations")
-        metas.append(meta)
+    order = {variant: i for i, variant in enumerate(cfg.variants)}
+    metas.sort(key=lambda meta: (order[meta["variant"]], meta["seed"]))
 
     counts = set(int(meta["evaluations"]) for meta in metas)
     if len(counts) > 1:

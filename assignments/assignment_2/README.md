@@ -19,9 +19,14 @@ See [the brief](reference/Assignment2.pdf) for the full requirements. Course rul
 ## Layout
 
 ```text
+EXPERIMENT.md         start here: how the experiment code works and how to run it
+run_experiment.py     run the configured experiment, then analyse it
+view.py               watch the best robots in the 3D viewer
+neuroevolution/       the experiment code (config, EAs, evaluation, analysis)
+docs/                 images used in EXPERIMENT.md
 A2_template_2026.py   official upstream demo (random weights, no evolution)
 reference/   official PDF brief
-tests/       framework compatibility and demo smoke tests
+tests/       framework compatibility and demo smoke tests, plus the experiment code's tests
 outputs/     generated files only; ignored except the README
 ```
 
