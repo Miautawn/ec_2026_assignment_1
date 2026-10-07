@@ -1,19 +1,15 @@
-"""The variant registry: which EAs exist, and how every figure shows them.
+"""The EAs the experiment can run: a name -> the EA class, a label and a colour.
 
-To add an EA: subclass `ea.NeuroEA` (see its docstring), then register it here.
-The harness runs anything registered -- nothing else needs to change.
-
-    VARIANTS["my_ea"] = Variant(MyEA, "My EA (what it does)", "#0072B2")
-
-Colour-blind-safe colours that pair with the baseline's grey:
-#0072B2 (blue), #D55E00 (vermillion), #009E73 (green), #CC79A7 (pink).
+To add one: `VARIANTS["my_ea"] = Variant(MyEA, "My EA", "#009E73")`.
 """
 
 from harness.variants import Variant
 
-from .ea import RandomSearch
+from .ea import RandomSearch, SelfAdaptiveEA, StaticSigmaEA
 
 #: name -> EA class, plus the label and colour every figure uses for it.
 VARIANTS = {
     "random_search": Variant(RandomSearch, "Random search (baseline)", "#7F7F7F"),
+    "static_sigma": Variant(StaticSigmaEA, "Static σ (draft)", "#0072B2"),            # DRAFT
+    "self_adaptive": Variant(SelfAdaptiveEA, "Self-adaptive σ (draft)", "#D55E00"),   # DRAFT
 }

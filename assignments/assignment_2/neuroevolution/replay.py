@@ -1,14 +1,8 @@
-"""Watch what was scored: champions from the database, videos, the live viewer.
+"""Watching stored robots: videos and the live 3D viewer.
 
-Nothing extra is stored for replays. Every evaluated individual's genome is
-already in its run's database, bit-for-bit, so any controller can be replayed
-by reading it back -- typically each variant's champion (its best individual
-over all seeds).
-
-Replays run through the evaluator itself, with an observer watching the loop
-(`Evaluator.evaluate(observer=...)`): a video or a viewer session *is* the
-scored simulation, not a re-enactment. Each replay checks that it reproduces
-the stored fitness exactly, and raises if not.
+Robots are read back from the run databases (nothing extra is stored) and
+replayed through the evaluator itself, so what you see is what was scored.
+A replay that does not reproduce the stored fitness raises an error.
 """
 
 from __future__ import annotations

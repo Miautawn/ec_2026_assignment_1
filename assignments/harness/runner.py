@@ -1,13 +1,7 @@
-"""Executes the (variant x seed) grid, one database per run, in parallel.
+"""Runs every (EA, seed) pair, several at once, one database per run.
 
-Each run gets its own directory holding `database.db` plus a `meta.json`
-recording the variant, seed, wall time, realised evaluation count and the full
-config.
-
-Runs are independent, so they execute in separate processes, `cfg.workers` at
-a time. Processes use the "spawn" start method on every OS, so Linux, macOS and
-Windows behave the same; the price is a few seconds of start-up per worker.
-Results do not depend on the number of workers.
+Each run is independent and seeded, so the number of parallel workers never
+changes a result.
 """
 
 from __future__ import annotations
@@ -84,7 +78,13 @@ def _report(index: int, total: int, meta: dict[str, object]) -> None:
 
 
 def run_all(cfg: BaseConfig, registry: Mapping[str, Variant]) -> list[dict[str, object]]:
-    """Run the whole grid, `cfg.workers` runs at a time."""
+    """Run the whole grid, `cfg.workers` runs at a time.
+
+    Each run gets its own process. Processes use the "spawn" start method on every
+    OS, so Linux, macOS and Windows behave the same; the price is a few seconds of
+    start-up per worker. The calling script needs `if __name__ == "__main__":`,
+    because workers re-import it.
+    """
     grid = [(variant, seed) for variant in cfg.variants for seed in cfg.seeds]
     workers = resolve_workers(cfg, len(grid))
 

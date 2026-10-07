@@ -1,40 +1,9 @@
-"""World + body + target, built identically for scoring and for replay.
+"""Builds the simulated scene: the world, the robot and the target.
 
-Everything that must be the same between an evaluation and a video of it lives
-here, so a replay can never show a different scene from the one that was
-scored.
-
-Fixed terrain
--------------
-ARIEL's rugged, crater and amphitheatre worlds add Perlin-noise bumps generated
-with `PerlinNoise()` -- no seed, so `np.random.default_rng(None)` draws fresh OS
-entropy on every build and no global seed can reach it. Left alone, the same
-genome would score differently on every evaluation, and every run and worker
-process would get its own world.
-
-So for those worlds we rebuild the terrain ourselves: the same recipe as the
-ARIEL world class (its deterministic shape plus the noise layer), but with
-`PerlinNoise(seed=terrain_seed)`, passed into `CompoundWorld` through its public
-`floor_heightmap` argument. No ARIEL source is modified. `OlympicArena`
-generates its noise in a private method with no way to pass a heightmap in, so
-its terrain cannot be fixed this way and it is not supported.
-
-Resting start pose
-------------------
-ARIEL's `correct_collision_with_floor` does not account for heightfield
-terrain: on the crater the robot is placed ~4 cm *inside* the ground. On the
-first physics step the contact solver ejects it violently -- a passive robot
-with every motor at rest was thrown 1.3 m up and 2 m sideways, and evolution
-would have optimised that catapult instead of walking. So after compiling, the
-robot is lifted until nothing penetrates the terrain and then allowed to settle
-passively, and the resting pose becomes the state every evaluation resets to.
-
-One settle is not always enough: on the bumpy heightfield the robot can come to
-a stop "jammed" ~2 cm into the terrain, and a reset (which clears MuJoCo's
-contact-solver state) releases it -- a passive robot then still moved ~40 cm.
-So settling repeats -- settle, freeze, reset -- until a passive robot started
-from the frozen pose stays within `REST_TOLERANCE`. The robot may come to rest
-a little away from the configured spawn point; `Scene.spawn_xy` records where.
+Scoring and video replays both use this, so a video always shows the scene
+that was scored. It also fixes two ARIEL quirks (details in the functions):
+bumpy terrain is generated from a fixed seed so it is the same every time,
+and the robot starts resting on the ground rather than stuck inside it.
 """
 
 from __future__ import annotations
@@ -186,7 +155,15 @@ WORLDS = {
 
 
 def build_world(cfg: ExperimentConfig):
-    """Build the configured world with its fixed terrain.
+    """Build the configured world, with terrain that is the same every time.
+
+    ARIEL's rugged, crater and amphitheatre worlds add random Perlin-noise bumps
+    with no seed, so every build makes a new terrain and no global seed can stop
+    it. The same genome would then score differently each time, and every run
+    would get its own world. So those worlds are rebuilt here with ARIEL's own
+    recipe but seeded noise (`terrain_seed`), passed in through the public
+    `CompoundWorld` API; no ARIEL source is changed. `OlympicArena` cannot be
+    fixed this way and is not supported.
 
     Raises
     ------
@@ -242,7 +219,14 @@ def _deepest_penetration(model: mj.MjModel, data: mj.MjData) -> float:
 
 
 def _rest_on_terrain(model: mj.MjModel, data: mj.MjData, core_qpos: int) -> None:
-    """Make the robot's start pose rest on the terrain (see module docstring).
+    """Make the robot start resting on the terrain instead of stuck inside it.
+
+    ARIEL's spawn correction ignores heightfield terrain, so on the crater the
+    robot starts ~4 cm inside the ground and the physics flings it out (a robot
+    with all motors off was thrown 1.3 m up). So the robot is lifted clear,
+    left to settle with its motors off, and the resting pose is frozen as the
+    start of every evaluation. Settling repeats until a passive robot stays put:
+    on bumpy ground one round can leave it jammed into the terrain.
 
     Edits `model.qpos0`, the pose `mj_resetData` restores.
 

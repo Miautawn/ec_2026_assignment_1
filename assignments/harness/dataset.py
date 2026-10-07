@@ -1,29 +1,8 @@
-"""Turns ARIEL databases into one tidy DataFrame with a FROZEN schema.
+"""Turns run databases into one table, with a row per EA, seed and generation.
 
-Everything downstream -- figures, tables, significance tests -- reads only
-these columns. That is the contract: as long as an EA writes a standard ARIEL
-`Individual` table, this module can summarise it, and nothing else needs to
-know which EA ran. Fitness is assumed lower-is-better throughout.
-
-Reconstructing a generation
----------------------------
-ARIEL never deletes rows; `EA._commit()` stamps `time_of_birth` once and
-refreshes `time_of_death` every generation an individual is still present.
-
-So the population alive during generation `g` is:
-    time_of_birth <= g <= time_of_death  AND  requires_eval = 0
-
-Assignment-specific metrics
----------------------------
-Two hooks add columns, both mappings from a column name to a function:
-
-`metrics` -- per individual: `f(genotype, tags) -> float`, both parsed from
-JSON. Each adds `mean_<name>` over the alive population and `best_<name>` for
-that generation's best individual (e.g. module count, mutation step size).
-
-`population_metrics` -- per generation: `f(Generation) -> float`. Each adds one
-column `<name>` (e.g. diversity, mutation success rate). Do not start these
-names with "mean_": that prefix marks per-individual metrics.
+Everything downstream (figures, statistics) reads only this table. Assignments
+add their own columns through two hooks: per-individual `metrics` and
+per-generation `population_metrics` (see `load`).
 """
 
 from __future__ import annotations
@@ -118,7 +97,13 @@ def summarise_run(
     metrics: Mapping[str, Metric] | None = None,
     population_metrics: Mapping[str, PopulationMetric] | None = None,
 ) -> pd.DataFrame:
-    """Summarise one database into per-generation rows of the frozen schema."""
+    """Summarise one database into per-generation rows.
+
+    ARIEL never deletes rows: it stamps `time_of_birth` once and refreshes
+    `time_of_death` every generation an individual is still present. So the
+    population of generation g is every evaluated individual with
+    time_of_birth <= g <= time_of_death.
+    """
     metrics = metrics or {}
     population_metrics = population_metrics or {}
     columns = _columns(metrics, population_metrics)
@@ -205,7 +190,14 @@ def load(
     metrics: Mapping[str, Metric] | None = None,
     population_metrics: Mapping[str, PopulationMetric] | None = None,
 ) -> pd.DataFrame:
-    """Load every completed run into one frame.
+    """Load the configured runs into one table.
+
+    `metrics` maps a name to f(genotype, tags) for one individual, and adds the
+    columns `mean_<name>` (population average) and `best_<name>` (the best
+    individual's value). `population_metrics` maps a name to f(Generation) and
+    adds one column `<name>`; don't start those names with "mean_", which marks
+    per-individual metrics. Runs of variants or seeds not in the config are
+    ignored, so leftovers from an earlier config are never mixed in.
 
     Raises
     ------

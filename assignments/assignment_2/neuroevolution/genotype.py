@@ -1,23 +1,7 @@
-"""The genotype: the network's weights plus the step size that produced them.
+"""What a genome is: the network's weights plus the mutation step size σ.
 
-Stored on an ARIEL `Individual` as JSON:
-
-    {"weights": [150 floats], "sigma": s}
-
-weights
-    The controller's weights and biases, in the layout of `controller.py`.
-sigma
-    The mutation step size that created this individual -- one σ for the whole
-    vector (Eiben & Smith's "uncorrelated mutation with one step size"). For
-    the self-adaptive EA it is a gene that evolves; for the static and
-    scheduled EAs it records the σ that was used. `None` for individuals no
-    mutation strategy produced (random search), which therefore draw no line
-    on the σ-over-time figure.
-
-JSON round-trips floats exactly (Python writes the shortest repr that reads
-back to the same float), so a stored genome re-evaluates to the same fitness.
-Weights are read-only: variation must build new arrays, so a parent can never
-be changed by accident while its child is being made.
+Stored on each individual as {"weights": [...], "sigma": s} and read back
+bit-for-bit, so a stored robot always replays exactly the same.
 """
 
 from __future__ import annotations
@@ -33,6 +17,14 @@ from ariel.ec import Individual
 
 @dataclass(frozen=True, eq=False)
 class Genotype:
+    """One genome: the weights, and the σ that created it.
+
+    `sigma` is the mutation step size: the standard deviation of the noise added
+    to every weight. One σ for the whole vector. For the self-adaptive EA it is a
+    gene that evolves; for other EAs it records the σ used; None for individuals
+    not made by mutation (random search). Weights are read-only, so making a
+    child can never change its parent by accident.
+    """
     weights: np.ndarray
     sigma: float | None = None
 

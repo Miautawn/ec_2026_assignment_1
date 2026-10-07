@@ -79,7 +79,7 @@ def rows(db_path):
     ]
 
 
-@pytest.mark.parametrize("variant", ["random_search", "toy"])
+@pytest.mark.parametrize("variant", list(REGISTRY))
 def test_runs_through_the_harness_with_exact_budget_and_complete_provenance(variant, cfg):
     meta = runner.execute(variant, 0, cfg, REGISTRY)
     assert meta["evaluations"] == cfg.evaluation_budget == 10
@@ -91,6 +91,11 @@ def test_runs_through_the_harness_with_exact_budget_and_complete_provenance(vari
         assert set(r["tags"]["parents"]) <= ids        # every parent is in the database
     origins = {r["tags"]["origin"] for r in records}
     assert origins == ({"initial", "random"} if variant == "random_search" else {"initial", "offspring"})
+    sigmas = {r["genotype"]["sigma"] for r in records if r["tags"]["origin"] == "offspring"}
+    if variant == "static_sigma":
+        assert sigmas == {0.1}                       # one fixed σ for every child
+    if variant == "self_adaptive":
+        assert len(sigmas) > 1                       # σ evolves per child
 
 
 def test_harness_dataset_reads_a2_runs_including_sigma(cfg):

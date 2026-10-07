@@ -1,15 +1,7 @@
-"""Genome -> one simulation -> fitness and behaviour data.
+"""Scores a genome: runs one simulation and measures where the robot ended up.
 
-The scene is built once per `Evaluator` (i.e. once per worker process) and
-reset before every evaluation. `MjModel` -- terrain, body, spawn pose -- never
-changes during a simulation; `mj_resetData` returns the moving state (`MjData`)
-exactly to the start, so reusing the scene is identical to rebuilding it, ~20%
-cheaper. The controller is created fresh per evaluation, so nothing carries
-over between evaluations.
-
-The physics loop is ARIEL's `thread_safe_runner` approach -- the controller is
-called explicitly, never through MuJoCo's process-global callback -- written
-out so it can query the network at `control_hz` and record a trajectory.
+The scene is built once and reset before every evaluation, which gives the same
+result as rebuilding it, only cheaper.
 """
 
 from __future__ import annotations
@@ -130,9 +122,12 @@ class Evaluator:
     ) -> EvalResult:
         """Run one full simulation of `genome` and score it.
 
+        The controller is called explicitly, never through MuJoCo's global callback,
+        so evaluations are safe to run in parallel processes.
+
         `observer`, if given, is called at every network query with the live
-        simulation state -- this is how videos and the viewer watch the exact
-        loop that is scored. It must only read the state, never change it.
+        simulation state: this is how videos and the viewer watch the exact loop
+        that is scored. It must only read the state, never change it.
         """
         model, data = self.scene.model, self.scene.data
         self.reset()

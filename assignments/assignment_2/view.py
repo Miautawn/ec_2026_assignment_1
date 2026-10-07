@@ -1,11 +1,8 @@
-"""Watch each variant's champion in MuJoCo's interactive viewer.
+"""Shows each EA's best robot in the 3D viewer; close the window for the next.
 
-    uv run assignments/assignment_2/view.py          (macOS: run with mjpython)
+    uv run assignments/assignment_2/view.py      (on macOS: mjpython)
 
-Uses the results of `CONFIG` in `neuroevolution/config.py`, so run the
-experiment first. Shows each variant's best controller in turn, in real time
-and on a loop, camera following the robot; close the window for the next one.
-Videos of the same champions are written by `run_experiment.py`.
+Uses the results of `CONFIG`, so run the experiment first.
 """
 
 import sys

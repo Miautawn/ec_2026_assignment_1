@@ -1,25 +1,8 @@
-"""Statistics for the report: summary table and paired comparisons.
+"""Statistics for the report: a summary per EA, and every pair of EAs compared.
 
-Unit of analysis
-----------------
-Every test uses one observation per independent run, so N is the number of
-seeds. Treating individuals as observations would inflate N by a factor of
-thousands and produce meaningless p-values. Runs are paired by seed: variants
-sharing a seed start from the same initial population.
-
-What a comparison reports
--------------------------
-For each pair of variants (A, B), on final best fitness (lower is better):
-
-  * how often each was lower (`a_lower`, `b_lower`, `ties`);
-  * the mean paired difference A - B with a 95% bootstrap confidence interval
-    -- the *size* of the effect and how precisely it is known. An interval
-    that excludes 0 shows a difference; a narrow one around 0 bounds how large
-    any difference could plausibly be (the argument for practical
-    equivalence); a wide one around 0 means "inconclusive";
-  * two paired tests, each Holm-corrected across all pairs as its own family:
-    the exact sign test (direction only) and the Wilcoxon signed-rank test
-    (also uses the sizes of the differences, so it has more power).
+Each run counts once (N = number of seeds, never individuals), and runs are
+compared seed by seed. The main result of a comparison is a confidence
+interval for the difference: see `pairwise_tests`.
 """
 
 from __future__ import annotations
@@ -111,7 +94,16 @@ def mean_difference_ci(differences: np.ndarray) -> tuple[float, float]:
 
 
 def pairwise_tests(final: pd.DataFrame) -> pd.DataFrame:
-    """Paired comparison of every pair of variants on final best fitness."""
+    """Compare every pair of EAs (A, B) on final best fitness, seed by seed.
+
+    Reports how often each was lower, the mean difference A - B with a 95%
+    bootstrap confidence interval, and two Holm-corrected tests: the sign test
+    (direction only) and Wilcoxon (also uses the size of the differences).
+
+    Reading the interval: excludes 0, there is a difference of roughly this size;
+    narrow around 0, any difference is too small to matter; wide around 0,
+    inconclusive, and more seeds would narrow it.
+    """
     if final.duplicated(["variant", "seed"]).any():
         raise ValueError("Expected one final outcome per variant and seed")
     if not np.isfinite(final["best_so_far"].to_numpy()).all():

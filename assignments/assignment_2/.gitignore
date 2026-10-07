@@ -7,3 +7,6 @@ __pycache__/
 
 # Keep the official brief despite the repository-wide PDF ignore.
 !reference/Assignment2.pdf
+
+# The repo root ignores *.png globally; the guide's example images must be shared.
+!docs/*.png

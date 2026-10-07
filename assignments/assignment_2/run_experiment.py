@@ -1,11 +1,8 @@
-"""Run the configured experiment, then write its tables, figures and videos.
+"""Runs the experiment in `neuroevolution/config.py` (`CONFIG`), then analyses it.
 
     uv run assignments/assignment_2/run_experiment.py
 
-What runs is `CONFIG` in `neuroevolution/config.py`: the variants, the seeds,
-the budget, the world, and how many runs execute in parallel (`workers`).
-Edit it there and re-run. Results land in `outputs/<name>/`, including a
-video of each variant's champion in `outputs/<name>/videos/`.
+Writes tables, figures and a video of each EA's best robot to outputs/<name>/.
 """
 
 import sys

@@ -1,20 +1,8 @@
-"""What every individual records about its own origin and evaluation.
+"""What each individual writes down about itself: its parents, how it was made,
+and what it did.
 
-Stored in the individual's ARIEL `tags` (a JSON column), so that any question
-about what the operators did can be answered from the database after a run,
-without re-running anything:
-
-    origin               "initial" | "offspring" | "random"
-    parents              database ids of its parents ([] if none)
-    operators            variation operators that made it, in order applied
-    final_x, final_y     where the evaluation ended   (from EvalResult)
-    distance_from_spawn  how far it got, any direction (from EvalResult)
-    failed               whether the physics was unstable (from EvalResult)
-
-Only raw facts are recorded; statistics are computed later. Anything already
-in the database is not duplicated: generation (time_of_birth), survival
-(alive / time_of_death), fitness and σ (in the genotype). A parent's fitness or
-σ is found by looking its id up.
+Stored in its tags, so after a run we can see what the operators actually did
+(e.g. how often children beat their parents) without re-running anything.
 """
 
 from __future__ import annotations
@@ -27,7 +15,14 @@ from .evaluator import EvalResult
 
 ORIGINS = ("initial", "offspring", "random")
 
-#: Every key an individual must carry once it has been created and evaluated.
+#: Every tag an individual carries once created and evaluated:
+#:   origin               "initial" | "offspring" | "random"
+#:   parents              database ids of its parents ([] if none)
+#:   operators            variation operators that made it, in order
+#:   final_x, final_y     where its evaluation ended
+#:   distance_from_spawn  how far it got, in any direction
+#:   failed               whether the physics went unstable
+#: Facts already in the database (birth, survival, fitness, σ) are not repeated.
 REQUIRED_TAGS = (
     "origin", "parents", "operators",
     "final_x", "final_y", "distance_from_spawn", "failed",

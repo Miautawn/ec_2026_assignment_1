@@ -1,30 +1,8 @@
-"""The per-generation numbers that explain *why* an EA behaves as it does.
+"""Per-generation numbers that explain *why* an EA behaves as it does.
 
-Computed from the database after a run (from the genotypes and the provenance
-tags), and added as columns of `per_generation.csv` by the harness. They apply
-to any EA; where a number does not apply it is empty (NaN) -- e.g. random
-search has no parents, so it has no mutation success rate.
-
-Per individual (harness adds `mean_<name>` and `best_<name>`):
-
-    sigma        mutation step size stored in the genome
-    distance     distance travelled from spawn
-
-Per generation (harness adds one column each):
-
-    genotype_diversity       mean pairwise distance between weight vectors of
-                             the population present this generation
-    behaviour_diversity      mean pairwise distance between their end positions
-    success_rate             share of children born this generation that
-                             beat their best parent (lower fitness)
-    improvement_over_parent  mean of (best parent's fitness - child's fitness)
-                             over those children; positive = children better
-    survival_rate            share of those children still present in the
-                             next generation (empty for the last generation)
-    parent_fraction          distinct parents of this generation's children,
-                             as a share of the population they were chosen from
-    failure_rate             share of this generation's evaluations in which
-                             the physics went unstable
+Computed from the databases after a run and added as columns of
+`per_generation.csv`; each function says what it measures. Numbers that do
+not apply are left empty (random search has no parents, so no success rate).
 """
 
 from __future__ import annotations
@@ -43,11 +21,13 @@ NAN = float("nan")
 # --------------------------------------------------------------------------- #
 
 def sigma(genotype: dict, tags: dict) -> float:  # noqa: ARG001
+    """Mutation step size stored in the genome."""
     value = genotype.get("sigma")
     return NAN if value is None else float(value)
 
 
 def distance(genotype: dict, tags: dict) -> float:  # noqa: ARG001
+    """How far the robot travelled from its start."""
     return float(tags.get("distance_from_spawn", NAN))
 
 
@@ -60,11 +40,13 @@ def _mean_pairwise_distance(points: np.ndarray) -> float:
 
 
 def genotype_diversity(generation: Generation) -> float:
+    """How different the genomes are: mean distance between every pair of weight vectors."""
     weights = np.array([g["weights"] for g in generation.alive["genotype"]])
     return _mean_pairwise_distance(weights)
 
 
 def behaviour_diversity(generation: Generation) -> float:
+    """How different the robots' end positions are: mean distance between every pair."""
     ends = np.array([(t["final_x"], t["final_y"]) for t in generation.alive["tags"]])
     return _mean_pairwise_distance(ends)
 
@@ -80,6 +62,7 @@ def _best_parent_fitness(children: pd.DataFrame, everyone: pd.DataFrame) -> np.n
 
 
 def success_rate(generation: Generation) -> float:
+    """Share of this generation's children that beat their best parent."""
     children = _children(generation)
     if children.empty:
         return NAN
@@ -88,6 +71,7 @@ def success_rate(generation: Generation) -> float:
 
 
 def improvement_over_parent(generation: Generation) -> float:
+    """Mean of (best parent's fitness - child's fitness); positive means children improved."""
     children = _children(generation)
     if children.empty:
         return NAN
@@ -96,6 +80,7 @@ def improvement_over_parent(generation: Generation) -> float:
 
 
 def survival_rate(generation: Generation) -> float:
+    """Share of this generation's children still present in the next one (empty for the last)."""
     children = _children(generation)
     if children.empty or generation.number == generation.last:
         return NAN
@@ -103,6 +88,7 @@ def survival_rate(generation: Generation) -> float:
 
 
 def parent_fraction(generation: Generation) -> float:
+    """Distinct parents of this generation's children, as a share of the population they came from."""
     children = _children(generation)
     pool = generation.alive.loc[generation.alive["time_of_birth"] < generation.number]
     if children.empty or pool.empty:
@@ -112,6 +98,7 @@ def parent_fraction(generation: Generation) -> float:
 
 
 def failure_rate(generation: Generation) -> float:
+    """Share of this generation's evaluations in which the physics went unstable."""
     born = generation.born
     if born.empty:
         return NAN

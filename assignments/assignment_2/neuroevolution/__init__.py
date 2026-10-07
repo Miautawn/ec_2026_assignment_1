@@ -1,19 +1,10 @@
-"""Neuroevolution code for Standard Assignment 2.
+"""Assignment 2: evolving neural-network controllers for a John Set robot.
 
-    config.py       every A2 parameter, on top of `harness.config.BaseConfig`
-    scene.py        world + body + target, built identically for scoring and replay
-    controller.py   the neural network: genome layout, inputs, forward pass
-    genotype.py     weights + σ, their JSON storage, random initialisation
-    provenance.py   what each individual records about its origin and evaluation
-    ea.py           NeuroEA base class (the EA kit) + random search
-    variants.py     the registry: which EAs the experiment runs
-    metrics.py      per-generation numbers: σ, diversity, operator statistics
-    replay.py       champions from the database, videos, the live viewer
-    figures.py      A2-only figures (champion paths over the terrain)
-    evaluator.py    genome -> one simulation -> fitness and behaviour data
+Start with EXPERIMENT.md. In short: config.py says what to run, ea.py is where
+EAs are written, variants.py lists them; the rest is plumbing.
 
-Named `neuroevolution` rather than `experiment` so that it does not collide
-with Assignment 1's package when both test suites run in one pytest process.
+(Named `neuroevolution`, not `experiment`, so it cannot clash with
+Assignment 1's package when both test suites run together.)
 """
 
 import sys

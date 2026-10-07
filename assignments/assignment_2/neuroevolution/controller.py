@@ -1,26 +1,7 @@
-"""The controller: a small neural network whose weights are the genome.
+"""The robot's brain: a small neural network whose weights are the genome.
 
-There is no training: the weights are fixed for a whole evaluation, and only
-evolution changes them, between generations (see SETUP.md).
-
-Genome layout
--------------
-A flat vector, read in this order:
-
-    W1  (n_inputs  x hidden)   row-major
-    b1  (hidden,)
-    W2  (hidden    x n_outputs) row-major
-    b2  (n_outputs,)
-
-Inputs, in this order (n_inputs = n_hinges + 5):
-
-    hinge angles ............ one per actuated hinge  (proprioception)
-    sin(2*pi*f*t), cos(...) . the clock               (rhythm)
-    cos(b), sin(b) .......... bearing b of the target relative to the robot's
-                              heading; b > 0 means the target is to the left
-    distance / start distance  1 at spawn, 0 at the target
-
-Outputs: one target angle per hinge, tanh scaled to [-pi/2, pi/2].
+It reads the robot's state (joint angles, a clock, where the target is) and
+outputs a target angle for each motor. The weights are evolved, never trained.
 """
 
 from __future__ import annotations
@@ -49,7 +30,10 @@ def genome_length(n_hinges: int, hidden: int) -> int:
 def decode(
     genome: Sequence[float], n_hinges: int, hidden: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Slice a flat genome into (W1, b1, W2, b2).
+    """Slice a flat genome into the network's weights (W1, b1, W2, b2).
+
+    The genome is read in this order: W1 (inputs x hidden, row by row), b1
+    (hidden), W2 (hidden x outputs, row by row), b2 (outputs).
 
     Raises
     ------
@@ -85,7 +69,14 @@ class NeuralController:
             raise ValueError("the target must not coincide with the spawn position")
 
     def inputs(self, data: mj.MjData) -> np.ndarray:
-        """The 11 network inputs for the current simulation state."""
+        """The network's inputs for the current simulation state, in this order:
+
+            hinge angles ......... one per motor (the robot's sense of its posture)
+            sin, cos of the clock  the rhythm to walk with
+            cos, sin of bearing .. where the target is, relative to where the robot
+                                   faces; positive bearing = target to the left
+            distance ............. to the target, 1 at the start and 0 on arrival
+        """
         scene = self.scene
         hinges = data.qpos[scene.hinge_qpos]
 

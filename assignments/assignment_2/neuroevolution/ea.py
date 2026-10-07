@@ -1,27 +1,8 @@
-"""The EA kit: everything an Assignment 2 EA needs, whatever it does.
+"""The EAs. To write a new one, subclass `NeuroEA`.
 
-A new EA subclasses `NeuroEA`, writes its own stages (selection, variation,
-survivor selection -- any `Population -> Population` methods) and lists them
-in `stages()`. The base class handles the rest:
-
-  * seeding, and a seeded `self.rng` for all of the EA's own randomness;
-  * one `Evaluator` (scene built once, reset per evaluation);
-  * the initial population -- identical for every EA given the same seed,
-    so runs can be compared pair-wise by seed;
-  * the `evaluate` stage, which scores individuals AND records their fitness
-    and provenance, so no EA can forget to log what happened;
-  * the EA settings every variant must share (`is_maximisation=False`, ...).
-
-    class MyEA(NeuroEA):
-        def stages(self):
-            return [EAOperation(self.reproduce), EAOperation(self.evaluate),
-                    EAOperation(self.select_survivors)]
-
-        def reproduce(self, population: Population) -> Population:
-            ...  # make children with mark_offspring(child, parents, operators)
-
-Use `self.cfg.population_size`, never ARIEL's global `config`, for the
-population size: `EA` reads `target_population_size` from that global.
+`NeuroEA` does the shared work (seeding, the initial population, evaluating
+and logging), so an EA only lists its own steps in `stages()`. Below it:
+random search, the baseline the brief requires, and two DRAFT EAs.
 """
 
 # NOTE: deliberately NO `from __future__ import annotations` in this module.
@@ -32,17 +13,26 @@ from pathlib import Path
 
 import numpy as np
 
-from ariel.ec import EA, EAOperation, Population
+from ariel.ec import EA, EAOperation, Individual, Population
 from harness.variants import ea_settings, seed_everything
 
 from .config import ExperimentConfig
 from .evaluator import IS_MAXIMISATION, Evaluator
 from .genotype import Genotype, from_individual, random_genotype, to_individual
-from .provenance import mark_initial, mark_random, record_evaluation
+from .provenance import mark_initial, mark_offspring, mark_random, record_evaluation
 
 
 class NeuroEA(EA):
-    """Base class for every Assignment 2 EA. Subclasses implement `stages()`."""
+    """Base class for every Assignment 2 EA. Subclasses implement `stages()`.
+
+        class MyEA(NeuroEA):
+            def stages(self):
+                return [EAOperation(self.reproduce), EAOperation(self.evaluate),
+                        EAOperation(self.select_survivors)]
+
+    Make children with `mark_offspring(child, parents, operators)` so they are
+    logged, and use `self.cfg.population_size`, never ARIEL's global `config`.
+    """
 
     #: σ stored on initial individuals. None: they were not made by mutation.
     #: An EA whose σ is a gene (self-adaptation) sets its starting value here.
@@ -110,3 +100,74 @@ class RandomSearch(NeuroEA):
             for _ in range(self.cfg.offspring_per_generation)
         )
         return population
+
+
+# --------------------------------------------------------------------------- #
+#  DRAFT EAs: written to test the pipeline, not tuned or validated.
+#  To delete: remove everything below, and their two lines in variants.py.
+# --------------------------------------------------------------------------- #
+
+SIGMA = 0.1           # static σ, and the self-adaptive EA's starting σ
+SIGMA_MIN = 1e-3      # self-adaptive floor (ε0): σ cannot collapse to zero
+TOURNAMENT_SIZE = 3
+
+
+class _MutationOnlyEA(NeuroEA):
+    """(μ + λ): tournament parents, Gaussian mutation, no crossover; the best
+    `population_size` of parents and children survive. Subclasses set σ."""
+
+    def stages(self) -> list[EAOperation]:
+        return [
+            EAOperation(self.reproduce),
+            EAOperation(self.evaluate),
+            EAOperation(self.select_survivors),
+        ]
+
+    def next_sigma(self, parent_sigma: float | None) -> float:
+        """The σ a child is mutated with."""
+        raise NotImplementedError
+
+    def tournament(self, candidates: list[Individual]) -> Individual:
+        entrants = self.rng.integers(len(candidates), size=TOURNAMENT_SIZE)
+        return min((candidates[i] for i in entrants), key=lambda ind: ind.fitness)
+
+    def reproduce(self, population: Population) -> Population:
+        parents = list(population)
+        children = []
+        for _ in range(self.cfg.offspring_per_generation):
+            parent = self.tournament(parents)
+            genotype = from_individual(parent)
+            sigma = self.next_sigma(genotype.sigma)
+            weights = genotype.weights + self.rng.normal(0.0, sigma, genotype.weights.size)
+            child = to_individual(Genotype(weights, sigma))
+            children.append(mark_offspring(child, [parent], ["mutation"]))
+        population.extend(children)
+        return population
+
+    def select_survivors(self, population: Population) -> Population:
+        ranked = sorted(population, key=lambda ind: ind.fitness)
+        keep = {id(ind) for ind in ranked[: self.cfg.population_size]}
+        for individual in population:
+            individual.alive = id(individual) in keep
+        return population
+
+
+class StaticSigmaEA(_MutationOnlyEA):
+    """DRAFT. Every child is mutated with the same, fixed σ (SIGMA)."""
+
+    def next_sigma(self, parent_sigma: float | None) -> float:  # noqa: ARG002
+        return SIGMA
+
+
+class SelfAdaptiveEA(_MutationOnlyEA):
+    """DRAFT. σ is a gene and evolves with the weights.
+
+    Each child first mutates its parent's σ, σ' = max(σ · exp(τ · N(0, 1)),
+    SIGMA_MIN) with τ = 1/sqrt(n), then uses σ' on its weights.
+    """
+
+    initial_sigma = SIGMA
+
+    def next_sigma(self, parent_sigma: float | None) -> float:
+        tau = 1.0 / np.sqrt(self.evaluator.genome_length)
+        return max(parent_sigma * np.exp(tau * self.rng.normal()), SIGMA_MIN)

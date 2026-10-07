@@ -1,5 +1,7 @@
-"""Assignment 2 figures. Shared ones (convergence, final distribution) come
-from `harness.figures`; only figures that need the scene live here."""
+"""Assignment 2's own figure: each EA's best robot path, drawn over the terrain.
+
+The other figures are shared, in `harness.figures`.
+"""
 
 from __future__ import annotations
 

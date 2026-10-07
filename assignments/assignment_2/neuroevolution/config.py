@@ -1,12 +1,7 @@
-"""
-Single source of truth for every Assignment 2 parameter.
+"""Every parameter of the experiment, in one place.
 
-Budget, seeds, output paths and the worker count come from
-`harness.config.BaseConfig`. The reasoning behind each default is in SETUP.md.
-
-To run an experiment, edit `CONFIG` at the bottom of this file and run
-`run_experiment.py`. Give every experiment its own `outputs(...)` name, so a
-pilot can never overwrite final results.
+To run something: edit `CONFIG` at the bottom, then run `run_experiment.py`.
+Give each experiment its own `outputs("name")` folder.
 """
 
 from __future__ import annotations
@@ -35,6 +30,17 @@ def outputs(name: str) -> dict[str, Path]:
 @dataclass(frozen=True)
 class ExperimentConfig(BaseConfig):
     """Everything needed to reproduce the experiment.
+
+    Inherited from `harness.config.BaseConfig` (set them here like any other):
+
+        variants                        EAs to run, by registry name
+        seeds = range(10)               One independent run per seed per variant
+        population_size = 50            Starting individual count
+        generations = 100               Number of iterations for 1 population
+        offspring_per_generation = 50   How many offsprings to create each generation
+                                        Eval budget = population_size + (generations * offsprings_per_gen)
+        workers = None                  Runs in parallel; None = every core
+        results_dir, figures_dir        Use **outputs("name")
 
     Attributes
     ----------
@@ -95,11 +101,12 @@ class ExperimentConfig(BaseConfig):
 
 #: Quick end-to-end check: every code path, in well under a minute.
 SMOKE = ExperimentConfig(
-    seeds=(0, 1, 2),
-    population_size=8,
-    generations=3,
-    offspring_per_generation=8,
-    sim_duration=3.0,
+    variants=("random_search", "static_sigma", "self_adaptive"),
+    seeds=(101, 420, 69),
+    population_size=50,
+    generations=50,
+    offspring_per_generation=25,
+    sim_duration=10.0,
     **outputs("smoke"),
 )
 
