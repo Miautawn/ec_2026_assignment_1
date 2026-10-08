@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy.spatial.distance import pdist
 
-from harness.dataset import Generation
+from harness.dataset import Generation, population_after_selection
 
 NAN = float("nan")
 
@@ -41,13 +41,13 @@ def _mean_pairwise_distance(points: np.ndarray) -> float:
 
 def genotype_diversity(generation: Generation) -> float:
     """How different the genomes are: mean distance between every pair of weight vectors."""
-    weights = np.array([g["weights"] for g in generation.alive["genotype"]])
+    weights = np.array([g["weights"] for g in generation.population["genotype"]])
     return _mean_pairwise_distance(weights)
 
 
 def behaviour_diversity(generation: Generation) -> float:
     """How different the robots' end positions are: mean distance between every pair."""
-    ends = np.array([(t["final_x"], t["final_y"]) for t in generation.alive["tags"]])
+    ends = np.array([(t["final_x"], t["final_y"]) for t in generation.population["tags"]])
     return _mean_pairwise_distance(ends)
 
 
@@ -90,7 +90,10 @@ def survival_rate(generation: Generation) -> float:
 def parent_fraction(generation: Generation) -> float:
     """Distinct parents of this generation's children, as a share of the population they came from."""
     children = _children(generation)
-    pool = generation.alive.loc[generation.alive["time_of_birth"] < generation.number]
+    # Parents are chosen from the previous generation's population.
+    pool = population_after_selection(
+        generation.everyone, generation.number - 1, generation.last
+    )
     if children.empty or pool.empty:
         return NAN
     distinct = {parent for t in children["tags"] for parent in t["parents"]}
