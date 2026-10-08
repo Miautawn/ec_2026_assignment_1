@@ -7,6 +7,7 @@ Give each experiment its own `outputs("name")` folder.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import math
 from pathlib import Path
 from typing import Any
 
@@ -87,8 +88,35 @@ class ExperimentConfig(BaseConfig):
     init_scale: float = 0.5
     control_hz: float = 50.0
 
+    # Pilot defaults, not final tuned settings. One sigma applies to all weights
+    # and biases. Every offspring receives Gaussian mutation (no probability gate).
+    static_sigma: float = 0.1
+    initial_sigma: float = 0.1
+    sigma_min: float = 1e-3
+    sigma_max: float = 10.0
+    # tau = multiplier / sqrt(number of weights and biases).
+    adaptation_tau_multiplier: float = 1.0
+    tournament_size: int = 3
+
     results_dir: Path = outputs("main")["results_dir"]
     figures_dir: Path = outputs("main")["figures_dir"]
+
+    def __post_init__(self) -> None:
+        for name in ("static_sigma", "initial_sigma", "sigma_min", "sigma_max",
+                     "adaptation_tau_multiplier", "init_scale", "sim_duration"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+        if not self.sigma_min <= self.initial_sigma <= self.sigma_max:
+            raise ValueError("initial_sigma must lie between sigma_min and sigma_max")
+        if not self.sigma_min <= self.static_sigma <= self.sigma_max:
+            raise ValueError("static_sigma must lie between sigma_min and sigma_max")
+        for name in ("population_size", "offspring_per_generation", "tournament_size", "hidden_size"):
+            value = getattr(self, name)
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(f"{name} must be a positive integer")
+        if isinstance(self.generations, bool) or not isinstance(self.generations, int) or self.generations < 0:
+            raise ValueError("generations must be a non-negative integer")
 
     @property
     def spawn_xy(self) -> tuple[float, float]:

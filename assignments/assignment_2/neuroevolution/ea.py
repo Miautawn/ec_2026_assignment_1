@@ -2,7 +2,7 @@
 
 `NeuroEA` does the shared work (seeding, the initial population, evaluating
 and logging), so an EA only lists its own steps in `stages()`. Below it:
-random search, the baseline the brief requires, and two DRAFT EAs.
+random search and two mutation-only EAs. Final settings require pilot validation.
 """
 
 # NOTE: deliberately NO `from __future__ import annotations` in this module.
@@ -102,16 +102,6 @@ class RandomSearch(NeuroEA):
         return population
 
 
-# --------------------------------------------------------------------------- #
-#  DRAFT EAs: written to test the pipeline, not tuned or validated.
-#  To delete: remove everything below, and their two lines in variants.py.
-# --------------------------------------------------------------------------- #
-
-SIGMA = 0.1           # static σ, and the self-adaptive EA's starting σ
-SIGMA_MIN = 1e-3      # self-adaptive floor (ε0): σ cannot collapse to zero
-TOURNAMENT_SIZE = 3
-
-
 class _MutationOnlyEA(NeuroEA):
     """(μ + λ): tournament parents, Gaussian mutation, no crossover; the best
     `population_size` of parents and children survive. Subclasses set σ."""
@@ -128,7 +118,7 @@ class _MutationOnlyEA(NeuroEA):
         raise NotImplementedError
 
     def tournament(self, candidates: list[Individual]) -> Individual:
-        entrants = self.rng.integers(len(candidates), size=TOURNAMENT_SIZE)
+        entrants = self.rng.integers(len(candidates), size=self.cfg.tournament_size)
         return min((candidates[i] for i in entrants), key=lambda ind: ind.fitness)
 
     def reproduce(self, population: Population) -> Population:
@@ -140,7 +130,14 @@ class _MutationOnlyEA(NeuroEA):
             sigma = self.next_sigma(genotype.sigma)
             weights = genotype.weights + self.rng.normal(0.0, sigma, genotype.weights.size)
             child = to_individual(Genotype(weights, sigma))
-            children.append(mark_offspring(child, [parent], ["mutation"]))
+            child = mark_offspring(child, [parent], ["mutation"])
+            delta = weights - genotype.weights
+            child.tags = {
+                "mutation_l2": float(np.linalg.norm(delta)),
+                "mutation_rms": float(np.sqrt(np.mean(delta ** 2))),
+                "sigma_at_bound": bool(sigma <= self.cfg.sigma_min or sigma >= self.cfg.sigma_max),
+            }
+            children.append(child)
         population.extend(children)
         return population
 
@@ -153,21 +150,44 @@ class _MutationOnlyEA(NeuroEA):
 
 
 class StaticSigmaEA(_MutationOnlyEA):
-    """DRAFT. Every child is mutated with the same, fixed σ (SIGMA)."""
+    """Every child uses cfg.static_sigma; initial individuals store it too."""
+
+    @property
+    def initial_sigma(self) -> float:
+        return self.cfg.static_sigma
 
     def next_sigma(self, parent_sigma: float | None) -> float:  # noqa: ARG002
-        return SIGMA
+        return self.cfg.static_sigma
 
 
 class SelfAdaptiveEA(_MutationOnlyEA):
-    """DRAFT. σ is a gene and evolves with the weights.
+    """σ is inherited with the weights and mutated before they are perturbed.
 
-    Each child first mutates its parent's σ, σ' = max(σ · exp(τ · N(0, 1)),
-    SIGMA_MIN) with τ = 1/sqrt(n), then uses σ' on its weights.
+    log(σ') = clip(log(σ) + τ N(0,1), log(min), log(max)).
+    τ = cfg.adaptation_tau_multiplier / sqrt(n). Independent Gaussian draws
+    then mutate all n weights/biases using σ'. Bounds prevent numerical collapse
+    or explosion; boundary frequency must be checked in pilots.
+
+    The single-step-size rule and 1/sqrt(n) starting rate follow Beyer and
+    Schwefel (2002), section 4.2.2.1, doi:10.1023/A:1015059928466.
+    Tournament parents and elitist survival are shared experimental choices,
+    not a claim to implement a canonical comma-selection evolution strategy.
     """
 
-    initial_sigma = SIGMA
+    @property
+    def initial_sigma(self) -> float:
+        return self.cfg.initial_sigma
+
+    @property
+    def adaptation_tau(self) -> float:
+        return self.cfg.adaptation_tau_multiplier / np.sqrt(self.evaluator.genome_length)
 
     def next_sigma(self, parent_sigma: float | None) -> float:
-        tau = 1.0 / np.sqrt(self.evaluator.genome_length)
-        return max(parent_sigma * np.exp(tau * self.rng.normal()), SIGMA_MIN)
+        if parent_sigma is None or not np.isfinite(parent_sigma) or parent_sigma <= 0:
+            raise ValueError("self-adaptive parents need a finite positive sigma")
+        log_sigma = np.log(parent_sigma) + self.adaptation_tau * self.rng.normal()
+        if log_sigma <= np.log(self.cfg.sigma_min):
+            return self.cfg.sigma_min
+        if log_sigma >= np.log(self.cfg.sigma_max):
+            return self.cfg.sigma_max
+        return float(np.exp(log_sigma))

@@ -9,6 +9,7 @@ works for *whatever* EA we end up writing, not to pre-build one.
 import json
 import sqlite3
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -17,7 +18,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from neuroevolution.config import ExperimentConfig
-from neuroevolution.ea import NeuroEA, RandomSearch
+from neuroevolution.ea import NeuroEA, RandomSearch, SelfAdaptiveEA, StaticSigmaEA
 from neuroevolution.genotype import Genotype, from_individual, to_individual
 from neuroevolution.metrics import sigma
 from neuroevolution.provenance import REQUIRED_TAGS, mark_offspring
@@ -116,13 +117,14 @@ def test_same_seed_reproduces_the_run_exactly(cfg, tmp_path):
 
 
 def test_every_variant_starts_from_the_same_weights_for_a_seed(cfg):
+    cfg = replace(cfg, variants=tuple(VARIANTS))
     for variant in cfg.variants:
         runner.execute(variant, 0, cfg, REGISTRY)
     initial = {
         variant: [r["genotype"]["weights"] for r in rows(cfg.db_path(variant, 0)) if r["born"] == 0]
         for variant in cfg.variants
     }
-    assert initial["random_search"] == initial["toy"]
+    assert initial["random_search"] == initial["static_sigma"] == initial["self_adaptive"]
 
 
 def test_random_search_never_inherits(cfg):
@@ -141,7 +143,7 @@ def test_parallel_and_sequential_runs_are_identical(cfg, tmp_path):
     """The number of worker processes must never change a result."""
     from dataclasses import replace
 
-    grid = replace(cfg, seeds=(0, 1))
+    grid = replace(cfg, seeds=(0, 1), variants=tuple(VARIANTS))
     sequential = replace(grid, workers=1, results_dir=tmp_path / "seq" / "results")
     parallel = replace(grid, workers=2, results_dir=tmp_path / "par" / "results")
     runner.run_all(sequential, REGISTRY)
@@ -149,3 +151,82 @@ def test_parallel_and_sequential_runs_are_identical(cfg, tmp_path):
     for variant in grid.variants:
         for seed in grid.seeds:
             assert rows(parallel.db_path(variant, seed)) == rows(sequential.db_path(variant, seed))
+
+
+@pytest.mark.parametrize("change", [
+    {"static_sigma": 0}, {"initial_sigma": float("nan")},
+    {"sigma_min": -1}, {"sigma_max": float("inf")},
+    {"initial_sigma": 11}, {"sigma_min": 0.2},
+    {"adaptation_tau_multiplier": 0}, {"tournament_size": 0},
+    {"tournament_size": 1.5}, {"population_size": 0},
+    {"offspring_per_generation": 0}, {"generations": -1},
+])
+def test_invalid_search_settings(cfg, change):
+    with pytest.raises(ValueError):
+        replace(cfg, **change)
+
+
+def test_nondefault_settings_are_used_and_saved(cfg):
+    cfg = replace(cfg, static_sigma=0.23, initial_sigma=0.07,
+                  adaptation_tau_multiplier=0.5, tournament_size=1)
+    meta = runner.execute("static_sigma", 3, cfg, REGISTRY)
+    assert meta["config"]["static_sigma"] == 0.23
+    assert meta["config"]["adaptation_tau_multiplier"] == 0.5
+    assert meta["config"]["tournament_size"] == 1
+    assert {r["genotype"]["sigma"] for r in rows(cfg.db_path("static_sigma", 3))} == {0.23}
+    ea = SelfAdaptiveEA(3, cfg.db_path("self_adaptive", 3), cfg)
+    ea.fetch_population()
+    assert ea.adaptation_tau == pytest.approx(0.5 / np.sqrt(ea.evaluator.genome_length))
+    assert {from_individual(i).sigma for i in ea.population} == {0.07}
+
+
+def test_self_adaptation_formula_and_bounds(cfg):
+    ea = SelfAdaptiveEA(3, cfg.db_path("self_adaptive", 3), cfg)
+    class FixedDraw:
+        def __init__(self, value):
+            self.value = value
+        def normal(self):
+            return self.value
+    ea.rng = FixedDraw(1.0)
+    assert ea.next_sigma(0.2) == pytest.approx(0.2 * np.exp(ea.adaptation_tau))
+    ea.rng = FixedDraw(1e6)
+    assert ea.next_sigma(0.2) == cfg.sigma_max
+    ea.rng = FixedDraw(-1e6)
+    assert ea.next_sigma(0.2) == cfg.sigma_min
+    for invalid in (None, 0, -1, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            ea.next_sigma(invalid)
+
+
+@pytest.mark.parametrize("cls", [StaticSigmaEA, SelfAdaptiveEA])
+def test_children_use_their_sigma_and_preserve_parents(cfg, cls):
+    ea = cls(7, cfg.db_path(cls.__name__, 7), cfg)
+    ea.fetch_population()
+    parents = list(ea.population)
+    before = {p.id: from_individual(p).weights.copy() for p in parents}
+    population = ea.reproduce(ea.population)
+    children = list(population)[len(parents):]
+    assert len(children) == cfg.offspring_per_generation
+    for parent in parents:
+        np.testing.assert_array_equal(from_individual(parent).weights, before[parent.id])
+    for child in children:
+        g = from_individual(child)
+        delta = g.weights - before[child.tags["parents"][0]]
+        assert child.tags["mutation_l2"] == pytest.approx(np.linalg.norm(delta))
+        assert child.tags["mutation_rms"] == pytest.approx(np.sqrt(np.mean(delta ** 2)))
+        assert g.sigma > 0
+        assert np.any(delta != 0)
+
+
+@pytest.mark.parametrize("cls", [StaticSigmaEA, SelfAdaptiveEA])
+def test_elitism_retains_population_size_and_breaks_ties_for_parents(cfg, cls):
+    ea = cls(7, cfg.db_path(cls.__name__, 7), cfg)
+    ea.fetch_population()
+    parents = list(ea.population)
+    population = ea.reproduce(ea.population)
+    for individual in population:
+        individual.fitness = 1.0
+    ea.select_survivors(population)
+    survivors = [i for i in population if i.alive]
+    assert len(survivors) == cfg.population_size
+    assert [id(i) for i in survivors] == [id(i) for i in parents]

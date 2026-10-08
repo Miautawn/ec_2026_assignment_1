@@ -10,6 +10,6 @@ from .ea import RandomSearch, SelfAdaptiveEA, StaticSigmaEA
 #: name -> EA class, plus the label and colour every figure uses for it.
 VARIANTS = {
     "random_search": Variant(RandomSearch, "Random search (baseline)", "#7F7F7F"),
-    "static_sigma": Variant(StaticSigmaEA, "Static σ (draft)", "#0072B2"),            # DRAFT
-    "self_adaptive": Variant(SelfAdaptiveEA, "Self-adaptive σ (draft)", "#D55E00"),   # DRAFT
+    "static_sigma": Variant(StaticSigmaEA, "Fixed σ", "#0072B2"),
+    "self_adaptive": Variant(SelfAdaptiveEA, "Self-adaptive σ", "#D55E00"),
 }

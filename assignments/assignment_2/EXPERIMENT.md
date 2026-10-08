@@ -4,8 +4,9 @@ This folder holds everything needed to **evolve a neural-network controller for
 a John Set robot, run any EA on it over many seeds in parallel, and analyse the
 results**: tables, statistics, figures and videos of the best robots.
 
-It is deliberately general. The research question is not fixed yet, so the
-code does not assume one: you write an EA, register it, and run it.
+The agreed comparison is fixed versus self-adaptive mutation strength, with
+random search as a baseline. The gecko/crater setup and final settings still
+need pilot validation. The harness also supports other registered EAs.
 
 ---
 
@@ -20,7 +21,7 @@ code does not assume one: you write an EA, register it, and run it.
 - **An EA kit:** a `NeuroEA` base class that handles seeding, evaluation,
   logging and the shared settings, so a new EA is only its own operators.
 - **Random search**, the baseline the brief requires.
-- **Two draft EAs** (static σ and self-adaptive σ), only for testing (see section 2).
+- **Two mutation-only EAs** (fixed σ and self-adaptive σ), with configurable settings (section 2).
 - **Parallel runs:** every (EA, seed) pair runs in its own process, as many at
   once as you allow.
 - **Full logging:** every individual records its parents, how it was made and
@@ -108,18 +109,59 @@ assignments/
 
 ## 2. What still needs to be done
 
-**No production-ready EA has been developed or run yet.** The code is the
-general machinery; the experiment itself is still to come.
+**Final experiments have not been run.** The implementations are ready for
+pilot testing; default parameters are not tuned settings.
 
 - **Random search** is real and final: the brief requires it whatever the
   research question.
-- **Static σ and self-adaptive σ are drafts**, written only to check that the
-  pipeline works end to end. They have not been tuned or validated, and their
-  settings are constants in `ea.py` rather than in the config. Keep, rewrite
-  or delete them. (To delete: remove the DRAFT section at the bottom of `ea.py`,
-  their two lines in `variants.py`, and their names from `SMOKE.variants`.)
+- **Fixed σ and self-adaptive σ** share tournament parent selection and elitist
+  (μ + λ) survival. Their settings are in `ExperimentConfig` and saved in each
+  run's metadata. Select final settings using separate pilot seeds.
 - **The example outputs in section 4 are from a small test run**, not an
   experiment. Do not draw conclusions from them.
+
+### Mutation variants and pilot choices
+
+Both EAs sample tournament entrants with replacement, select the lowest-fitness
+parent, and create one child by adding independent Gaussian noise to every weight
+and bias. There is no crossover or separate mutation-probability gate. This keeps
+the comparison focused on step-size control rather than recombination. The best
+μ parents/children survive; stable sorting gives existing parents priority on ties.
+
+Fixed mutation uses `static_sigma`. Self-adaptation inherits the parent's σ,
+mutates its logarithm by `tau * N(0,1)`, bounds it, and uses the resulting σ to
+mutate the weights. `tau = adaptation_tau_multiplier / sqrt(n)`, where n includes
+all network weights and biases. The default multiplier of 1 follows the initial
+recommendation in Beyer and Schwefel (2002), section 4.2.2.1
+([paper](https://doi.org/10.1023/A:1015059928466)); it is not an optimum established
+for this controller. σ evolves through inheritance and selection, not a prescribed
+decrease or a stagnation-triggered rule.
+
+Pilot defaults are `static_sigma=initial_sigma=0.1`, `sigma_min=0.001`,
+`sigma_max=10`, and `tournament_size=3`. The bounds are numerical safeguards,
+not literature-derived optima. Offspring tags record `mutation_l2`,
+`mutation_rms` and `sigma_at_bound` for checking the effective perturbations
+and whether the bounds influence the search. These tags are saved in the database;
+the existing CSV metrics do not yet aggregate them.
+
+Tournament selection and elitist survival retain the draft's common setup.
+They favour immediate fitness gains, which may also retain old σ values or reduce
+diversity. Their interaction with adaptation belongs in the analysis; preserving
+the best controller does not guarantee successful self-adaptation.
+
+Before final runs, compare a small set of fixed strengths (for example 0.03, 0.1,
+0.3) on separate pilot seeds at the same budget. Check movement, failures, σ bounds,
+convergence and runtime, then freeze settings and use fresh final seeds. The pilot
+grid is a proposal, not completed tuning. Report its cost separately. Do not choose
+settings by looking at final-seed outcomes.
+
+Analysis handoff: current population metrics include the parent/offspring pool,
+not just selected survivors. Endpoint diversity measures differences in final XY
+positions, not gait diversity. Distinguish these in plots. The failure penalty and
+survivor-metric definitions still need coordination before final experiments.
+Use a new output name for every run batch: the runner currently replaces an
+existing variant/seed directory. Final runs also need explicit verification against
+the requested budget, not just agreement between variants' counts.
 
 ### Adding an EA
 
