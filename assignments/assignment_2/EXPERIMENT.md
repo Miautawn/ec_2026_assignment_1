@@ -263,8 +263,12 @@ run). They illustrate the outputs; they are **not** results.
 
 ### Tables
 
-- **`per_generation.csv`**: one row per EA, seed and generation. Besides the
-  fitness (best, mean, worst, best-so-far), it has:
+- **`per_generation.csv`**: one row per EA, seed and generation. Each row
+  describes the **population after that generation's survivor selection**: the
+  individuals that carry on (μ of them), not the children culled straight away.
+  Best-so-far and the operator statistics (success, survival, failures) still
+  count every child that was evaluated. Besides the fitness (best, mean, worst,
+  best-so-far), it has:
 
   | column | meaning |
   |---|---|

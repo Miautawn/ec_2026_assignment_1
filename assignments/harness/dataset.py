@@ -47,7 +47,7 @@ class Generation:
 
     number: int
     last: int                 # the run's final generation
-    alive: pd.DataFrame       # present during this generation
+    population: pd.DataFrame  # after this generation's survivor selection
     born: pd.DataFrame        # created (and evaluated) in this generation
     everyone: pd.DataFrame    # the whole run
 
@@ -60,6 +60,26 @@ def _read_individuals(db_path: Path) -> pd.DataFrame:
     """Read the raw `individual` table."""
     with sqlite3.connect(db_path) as connection:
         return pd.read_sql("SELECT * FROM individual", connection)
+
+
+def population_after_selection(
+    individuals: pd.DataFrame, generation: int, last: int
+) -> pd.DataFrame:
+    """The population at the end of `generation`, after survivor selection.
+
+    That is, the individuals that carry on into the next generation: in a
+    (mu + lambda) EA the mu survivors, not the culled children. ARIEL stamps
+    every individual present during a generation with that generation's
+    `time_of_death`, including children culled at its end, so "present in g"
+    would mix the culled candidates in. Survivors of g are the ones still
+    present in g + 1; in the final generation, the ones still flagged alive.
+    """
+    born = individuals["time_of_birth"] <= generation
+    if generation == last:
+        kept = individuals["alive"].astype(bool)
+    else:
+        kept = individuals["time_of_death"] > generation
+    return individuals.loc[born & kept]
 
 
 def _parse(payload: str | None) -> Any:
@@ -99,10 +119,10 @@ def summarise_run(
 ) -> pd.DataFrame:
     """Summarise one database into per-generation rows.
 
-    ARIEL never deletes rows: it stamps `time_of_birth` once and refreshes
-    `time_of_death` every generation an individual is still present. So the
-    population of generation g is every evaluated individual with
-    time_of_birth <= g <= time_of_death.
+    Each row describes generation g's population after survivor selection
+    (see `population_after_selection`): the individuals that carry on, which
+    is what "the population" means in EC. `best_so_far` and
+    `evaluations_so_far` count everything ever evaluated.
     """
     metrics = metrics or {}
     population_metrics = population_metrics or {}
@@ -127,23 +147,20 @@ def summarise_run(
 
     records: list[dict[str, object]] = []
     for generation in range(first_gen, last_gen + 1):
-        alive = evaluated.loc[
-            (evaluated["time_of_birth"] <= generation)
-            & (evaluated["time_of_death"] >= generation)
-        ]
+        population = population_after_selection(evaluated, generation, last_gen)
         seen = evaluated.loc[evaluated["time_of_birth"] <= generation]
 
-        if alive.empty:
+        if population.empty:
             continue
 
-        fitness = alive["fitness_"].astype(float)
-        best_row = alive.loc[fitness.idxmin()]
+        fitness = population["fitness_"].astype(float)
+        best_row = population.loc[fitness.idxmin()]
 
         record: dict[str, object] = {
             "variant": variant,
             "seed": seed,
             "generation": generation,
-            "n_alive": int(len(alive)),
+            "n_alive": int(len(population)),
             "best_fitness": float(fitness.min()),
             "mean_fitness": float(fitness.mean()),
             "worst_fitness": float(fitness.max()),
@@ -152,13 +169,13 @@ def summarise_run(
             "evaluations_so_far": int(len(seen)),
         }
         for name in metrics:
-            record[f"mean_{name}"] = float(alive[f"metric:{name}"].mean())
+            record[f"mean_{name}"] = float(population[f"metric:{name}"].mean())
             record[f"best_{name}"] = float(best_row[f"metric:{name}"])
         if population_metrics:
             view = Generation(
                 number=generation,
                 last=last_gen,
-                alive=alive,
+                population=population,
                 born=evaluated.loc[evaluated["time_of_birth"] == generation],
                 everyone=everyone,
             )
