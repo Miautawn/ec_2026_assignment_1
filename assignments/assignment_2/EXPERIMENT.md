@@ -149,16 +149,44 @@ They favour immediate fitness gains, which may also retain old σ values or redu
 diversity. Their interaction with adaptation belongs in the analysis; preserving
 the best controller does not guarantee successful self-adaptation.
 
-Before final runs, compare a small set of fixed strengths (for example 0.03, 0.1,
-0.3) on separate pilot seeds at the same budget. Check movement, failures, σ bounds,
-convergence and runtime, then freeze settings and use fresh final seeds. The pilot
-grid is a proposal, not completed tuning. Report its cost separately. Do not choose
-settings by looking at final-seed outcomes.
+The 9 October screening pilot compared fixed σ values 0.03, 0.1 and 0.3,
+self-adaptation starting at 0.1, and random search. Each used seeds 8101–8103,
+30 individuals, 30 offspring and 20 generations (630 evaluations per run).
+Fixed σ = 0.03 had the lowest mean final distance, but several runs were still
+improving. A confirmation pilot therefore uses 100 generations and starts both
+EAs at σ = 0.03. This is pilot tuning, not evidence that either method is superior.
+Use fresh seeds for final experiments and report tuning costs separately.
 
-Analysis handoff: current population metrics include the parent/offspring pool,
-not just selected survivors. Endpoint diversity measures differences in final XY
-positions, not gait diversity. Distinguish these in plots. The failure penalty and
-survivor-metric definitions still need coordination before final experiments.
+The confirmation pilot completed all six runs (3,030 evaluations each). Mean final
+distance was 2.227 m for fixed σ and 2.337 m for self-adaptation. These three pilot
+seeds do not establish a performance difference. Survivor mean σ ended at 0.0178,
+0.0210 and 0.0318 across the adaptive runs, so adaptation did not simply freeze or
+uniformly decrease. Neither pilot recorded a physics failure or a σ-bound hit.
+Together they used 27,630 evaluations.
+
+All confirmation runs still improved in generations 75–100: 0.016–0.035 m for
+fixed mutation and 0.008–0.018 m for self-adaptation. Gains had slowed, but these
+runs do not establish a plateau. Check a longer pilot budget before freezing final
+runs; keep the body, world and shared selection unchanged. Replays of the screening
+pilot's best controllers reproduced stored scores, with modest upright movement.
+
+Run these from the repository root, with a new output name each time:
+
+```sh
+uv run assignments/assignment_2/run_pilot.py pilot-screen --phase screen --workers 4
+uv run assignments/assignment_2/run_pilot.py pilot-confirm --phase confirm --workers 6
+uv run assignments/assignment_2/summarise_pilot.py assignments/assignment_2/outputs/pilot-confirm
+```
+
+The pilot runner refuses existing output directories and checks each evaluation
+budget. It saves settings and source provenance alongside the databases.
+The summary checks completeness, failures, σ bounds and late-run improvement;
+its plots show means and standard deviations across pilot seeds.
+
+Population metrics now use selected survivors following the harness correction.
+Endpoint diversity measures differences in final XY positions, not gait diversity.
+The failure penalty still assigns the starting distance; check failures separately,
+since that score can favour a failed controller over one that moves away.
 Use a new output name for every run batch: the runner currently replaces an
 existing variant/seed directory. Final runs also need explicit verification against
 the requested budget, not just agreement between variants' counts.
