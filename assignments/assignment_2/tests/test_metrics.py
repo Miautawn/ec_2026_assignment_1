@@ -15,13 +15,14 @@ from neuroevolution.config import ExperimentConfig
 from neuroevolution.metrics import METRICS, POPULATION_METRICS
 
 from harness import dataset, runner
-from harness.dataset import Generation
+from harness.dataset import Generation, population_after_selection
 
 
 def individual(id_, fitness, born, died, *, origin="initial", parents=(),
-               weights=(0.0, 0.0), end=(0.0, 0.0), failed=False, sigma=None):
+               weights=(0.0, 0.0), end=(0.0, 0.0), failed=False, sigma=None, alive=False):
     return {
         "id": id_, "fitness_": fitness, "time_of_birth": born, "time_of_death": died,
+        "alive": alive,
         "genotype": {"weights": list(weights), "sigma": sigma},
         "tags": {"origin": origin, "parents": list(parents), "final_x": end[0],
                  "final_y": end[1], "failed": failed, "distance_from_spawn": 0.0},
@@ -30,9 +31,9 @@ def individual(id_, fitness, born, died, *, origin="initial", parents=(),
 
 def generation(rows, number=1, last=5):
     frame = pd.DataFrame(rows)
-    alive = frame[(frame.time_of_birth <= number) & (frame.time_of_death >= number)]
+    population = population_after_selection(frame, number, last)
     born = frame[frame.time_of_birth == number]
-    return Generation(number, last, alive, born, frame.set_index("id", drop=False))
+    return Generation(number, last, population, born, frame.set_index("id", drop=False))
 
 
 # Two parents (fitness 5 and 3) and two children, generation 1.
@@ -65,13 +66,13 @@ def test_parent_fraction():
 
 def test_diversity_is_mean_pairwise_distance():
     triangle = [  # a 3-4-5 triangle: pairwise distances 3, 4, 5
-        individual(1, 1.0, 0, 1, weights=(0, 0), end=(0, 0)),
-        individual(2, 1.0, 0, 1, weights=(3, 0), end=(3, 0)),
-        individual(3, 1.0, 0, 1, weights=(0, 4), end=(0, 4)),
+        individual(1, 1.0, 0, 2, weights=(0, 0), end=(0, 0)),
+        individual(2, 1.0, 0, 2, weights=(3, 0), end=(3, 0)),
+        individual(3, 1.0, 0, 2, weights=(0, 4), end=(0, 4)),
     ]
     assert metrics.genotype_diversity(generation(triangle)) == pytest.approx(4.0)
     assert metrics.behaviour_diversity(generation(triangle)) == pytest.approx(4.0)
-    clones = [individual(i, 1.0, 0, 1, weights=(1, 1)) for i in range(3)]
+    clones = [individual(i, 1.0, 0, 2, weights=(1, 1)) for i in range(3)]
     assert metrics.genotype_diversity(generation(clones)) == 0.0
 
 
@@ -112,6 +113,8 @@ def test_end_to_end_through_the_harness(tmp_path):
     assert math.isnan(toy.survival_rate.loc[3])                 # last generation
     assert (toy.failure_rate == 0).all()
     assert (toy.genotype_diversity > 0).all()
+    assert (toy.n_alive == cfg.population_size).all()           # always μ, never μ + λ
+    assert (rnd.n_alive.loc[1:] == cfg.offspring_per_generation).all()  # just this batch
     assert rnd.success_rate.isna().all()                        # no parents
     assert rnd.mean_sigma.isna().all()                          # no σ
     assert np.isfinite(rnd.mean_distance).all()
