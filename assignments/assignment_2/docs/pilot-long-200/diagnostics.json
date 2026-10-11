@@ -1,0 +1,81 @@
+{
+  "status": "pilot only",
+  "mean_final_best": {
+    "self_adaptive": 2.1316995569390085,
+    "fixed_003": 2.084971656406665
+  },
+  "runs": [
+    {
+      "variant": "fixed_003",
+      "seed": 8101,
+      "evaluations": 6030,
+      "initial_best": 2.5787962801839313,
+      "final_best": 2.2369845792321237,
+      "improvement_last_quarter": 0.0034282299842463004,
+      "final_survivor_mean_sigma": 0.030000000000000006,
+      "final_genotype_diversity": 0.8754181416388096,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    },
+    {
+      "variant": "fixed_003",
+      "seed": 8102,
+      "evaluations": 6030,
+      "initial_best": 2.582441296197192,
+      "final_best": 1.96871592352826,
+      "improvement_last_quarter": 0.0,
+      "final_survivor_mean_sigma": 0.030000000000000006,
+      "final_genotype_diversity": 0.8323515049632613,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    },
+    {
+      "variant": "fixed_003",
+      "seed": 8103,
+      "evaluations": 6030,
+      "initial_best": 2.536240826902765,
+      "final_best": 2.0492144664596115,
+      "improvement_last_quarter": 0.09806565848083659,
+      "final_survivor_mean_sigma": 0.030000000000000006,
+      "final_genotype_diversity": 0.9114757221202661,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    },
+    {
+      "variant": "self_adaptive",
+      "seed": 8101,
+      "evaluations": 6030,
+      "initial_best": 2.5787962801839313,
+      "final_best": 2.1933391018897,
+      "improvement_last_quarter": 0.0,
+      "final_survivor_mean_sigma": 0.010014886139233434,
+      "final_genotype_diversity": 0.28416955393949,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    },
+    {
+      "variant": "self_adaptive",
+      "seed": 8102,
+      "evaluations": 6030,
+      "initial_best": 2.582441296197192,
+      "final_best": 2.0157123584683863,
+      "improvement_last_quarter": 0.0,
+      "final_survivor_mean_sigma": 0.020506275714791654,
+      "final_genotype_diversity": 0.6526636238803879,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    },
+    {
+      "variant": "self_adaptive",
+      "seed": 8103,
+      "evaluations": 6030,
+      "initial_best": 2.536240826902765,
+      "final_best": 2.186047210458939,
+      "improvement_last_quarter": 0.0,
+      "final_survivor_mean_sigma": 0.006677482495564326,
+      "final_genotype_diversity": 0.1899083524960144,
+      "physics_failures": 0,
+      "sigma_bound_hits": 0
+    }
+  ]
+}

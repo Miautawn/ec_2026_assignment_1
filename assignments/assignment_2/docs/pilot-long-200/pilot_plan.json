@@ -1,0 +1,49 @@
+{
+  "config": {
+    "variants": [
+      "self_adaptive",
+      "fixed_003"
+    ],
+    "seeds": [
+      8101,
+      8102,
+      8103
+    ],
+    "population_size": 30,
+    "generations": 200,
+    "offspring_per_generation": 30,
+    "results_dir": "C:\\Users\\razan\\Documents\\ec_2026_assignment_1\\assignments\\assignment_2\\outputs\\pilot-long-200\\results",
+    "figures_dir": "C:\\Users\\razan\\Documents\\ec_2026_assignment_1\\assignments\\assignment_2\\outputs\\pilot-long-200\\figures",
+    "workers": 4,
+    "world": "crater",
+    "world_params": {},
+    "terrain_seed": 0,
+    "body": "gecko",
+    "spawn_position": [
+      0.0,
+      0.0,
+      0.1
+    ],
+    "target_y": 3.0,
+    "sim_duration": 15.0,
+    "hidden_size": 8,
+    "clock_hz": 1.0,
+    "init_scale": 0.5,
+    "control_hz": 50.0,
+    "static_sigma": 0.1,
+    "initial_sigma": 0.03,
+    "sigma_min": 0.001,
+    "sigma_max": 10.0,
+    "adaptation_tau_multiplier": 1.0,
+    "tournament_size": 3,
+    "evaluation_budget": 6030
+  },
+  "fixed_strengths": {
+    "fixed_003": 0.03
+  },
+  "purpose": "Exploratory pilot, not final results or a significance test",
+  "phase": "confirm",
+  "git_commit": "52eda9c86aa3b5b552fccc9d6049036730d98a66",
+  "working_diff": "",
+  "pilot_script": "\"\"\"Small mutation-strength pilot; refuses to replace existing outputs.\"\"\"\n\n# ruff: noqa: E402 -- local packages need the assignment paths below.\n\nimport argparse\nimport json\nimport multiprocessing\nimport sys\nimport subprocess\nfrom concurrent.futures import ProcessPoolExecutor, as_completed\nfrom dataclasses import replace\nfrom pathlib import Path\n\nHERE = Path(__file__).resolve().parent\nsys.path[:0] = [str(HERE), str(HERE.parent)]\n\nfrom harness import dataset, runner\nfrom harness.variants import Variant\nfrom neuroevolution.config import ExperimentConfig, outputs\nfrom neuroevolution.ea import StaticSigmaEA\nfrom neuroevolution.metrics import METRICS, POPULATION_METRICS\nfrom neuroevolution.variants import VARIANTS\n\n\ndef main():\n    parser = argparse.ArgumentParser(description=__doc__)\n    parser.add_argument(\"name\", help=\"New directory name under outputs/\")\n    parser.add_argument(\"--workers\", type=int, default=4)\n    parser.add_argument(\"--phase\", choices=(\"screen\", \"confirm\"), default=\"screen\")\n    args = parser.parse_args()\n    if not args.name or Path(args.name).name != args.name or args.name in (\".\", \"..\"):\n        parser.error(\"name must be a single directory name\")\n    if args.workers < 1:\n        parser.error(\"workers must be positive\")\n\n    strengths = {\"fixed_003\": 0.03, \"fixed_010\": 0.1, \"fixed_030\": 0.3}\n    if args.phase == \"confirm\":\n        strengths = {\"fixed_003\": 0.03}\n    names = (\"self_adaptive\",) if args.phase == \"confirm\" else (\"random_search\", \"self_adaptive\")\n    registry = {name: VARIANTS[name] for name in names}\n    registry.update({name: Variant(StaticSigmaEA, f\"Fixed sigma {sigma}\", \"#0072B2\")\n                     for name, sigma in strengths.items()})\n    cfg = ExperimentConfig(\n        variants=tuple(registry), seeds=(8101, 8102, 8103),\n        population_size=30, offspring_per_generation=30,\n        generations=200 if args.phase == \"confirm\" else 20,\n        initial_sigma=0.03 if args.phase == \"confirm\" else 0.1,\n        sim_duration=15.0, workers=args.workers, **outputs(args.name),\n    )\n    root = cfg.results_dir.parent\n    root.mkdir(parents=True, exist_ok=False)\n    (root / \"pilot_plan.json\").write_text(json.dumps({\n        \"config\": cfg.as_dict(), \"fixed_strengths\": strengths,\n        \"purpose\": \"Exploratory pilot, not final results or a significance test\",\n        \"phase\": args.phase,\n        \"git_commit\": subprocess.check_output([\"git\", \"rev-parse\", \"HEAD\"], text=True).strip(),\n        \"working_diff\": subprocess.check_output([\"git\", \"diff\"], text=True),\n        \"pilot_script\": Path(__file__).read_text(),\n    }, indent=2))\n    print(f\"Pilot outputs: {root}\", flush=True)\n    jobs = [(variant, seed, replace(cfg, static_sigma=strengths.get(variant, 0.1)))\n            for variant in cfg.variants for seed in cfg.seeds]\n    with ProcessPoolExecutor(max_workers=args.workers,\n                             mp_context=multiprocessing.get_context(\"spawn\")) as pool:\n        futures = {pool.submit(runner.execute, variant, seed, settings, registry): (variant, seed)\n                   for variant, seed, settings in jobs}\n        for index, future in enumerate(as_completed(futures), 1):\n            meta = future.result()\n            if meta[\"evaluations\"] != cfg.evaluation_budget:\n                raise RuntimeError(f\"Incorrect budget: {meta}\")\n            print(f\"{index}/{len(jobs)} {meta['variant']} seed={meta['seed']}: \"\n                  f\"{meta['wall_seconds']}s, {meta['evaluations']} evaluations\", flush=True)\n\n    tidy = dataset.load(cfg, METRICS, POPULATION_METRICS)\n    tidy.to_json(root / \"per_generation.json\", orient=\"records\", indent=2)\n    final = tidy.sort_values(\"generation\").groupby([\"variant\", \"seed\"], observed=True).tail(1)\n    final.to_json(root / \"final_per_seed.json\", orient=\"records\", indent=2)\n    columns = [\"variant\", \"seed\", \"best_so_far\", \"mean_sigma\", \"genotype_diversity\",\n               \"success_rate\", \"failure_rate\"]\n    print(final[columns].to_string(index=False))\n\n\nif __name__ == \"__main__\":\n    main()\n"
+}
