@@ -4,9 +4,12 @@ This folder holds everything needed to **evolve a neural-network controller for
 a John Set robot, run any EA on it over many seeds in parallel, and analyse the
 results**: tables, statistics, figures and videos of the best robots.
 
-The agreed comparison is fixed versus self-adaptive mutation strength, with
-random search as a baseline. The gecko/crater setup and final settings still
-need pilot validation. The harness also supports other registered EAs.
+The final comparison is fixed versus self-adaptive mutation strength, with
+random search as a baseline, using the John Set gecko in a crater. Final results
+are in `docs/final_200gen_9001_9010/`: ten seeds per method, 200 generations,
+30 parents and 30 offspring, and 6,030 evaluations per run. Both EAs start at
+sigma 0.03. `CONFIG` selects these settings; change the output name before a rerun
+to preserve existing results. The harness also supports other registered EAs.
 
 ---
 
@@ -91,7 +94,7 @@ assignments/
     ├── neuroevolution/
     │   ├── config.py           ← every parameter; CONFIG is what runs
     │   ├── variants.py         ← the EAs that exist (the registry)
-    │   ├── ea.py               the EAs: NeuroEA base class, random search, 2 drafts
+    │   ├── ea.py               NeuroEA, random search, fixed and self-adaptive mutation
     │   ├── scene.py            world + body + target
     │   ├── controller.py       the neural network
     │   ├── genotype.py         how a genome is stored
@@ -107,10 +110,11 @@ assignments/
 
 ---
 
-## 2. What still needs to be done
+## 2. Experimental settings
 
-**Final experiments have not been run.** The implementations are ready for
-pilot testing; default parameters are not tuned settings.
+**Final experiments are complete.** The final `CONFIG` overrides the generic
+dataclass defaults. Pilot runs and their role in choosing the settings are
+described below; pilot seeds are excluded from the final comparisons.
 
 - **Random search** is real and final: the brief requires it whatever the
   research question.

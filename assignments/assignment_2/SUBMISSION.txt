@@ -1,0 +1,31 @@
+Evolutionary Computing, Assignment 2 — Group 64
+
+The submission contains our added code, not the ARIEL framework. Preserve the
+directory structure when copying code/ into a checkout of the course repository.
+
+Setup
+  git clone https://github.com/AndrzejSzczepura/EvolutionaryComputing2026.git
+  cd EvolutionaryComputing2026
+  git checkout a435b192066d258096eba3f43f91c43b74cf11fe
+
+Copy the submitted code/assignments directory into this checkout, then run:
+  uv sync
+  uv run assignments/assignment_2/run_experiment.py
+
+The config selects random search, fixed sigma and self-adaptive sigma, with
+seeds 9001–9010, 30 parents, 30 offspring, 200 generations and 15-second episodes.
+Both EAs start with sigma 0.03. Each run uses 6,030 evaluations.
+
+Outputs are written below assignments/assignment_2/outputs/final_200gen_9001_9010/.
+Choose a new outputs("name") in neuroevolution/config.py before repeating a run:
+the runner replaces existing output directories for the configured seed/variant.
+Rendering videos requires a working MuJoCo/OpenGL installation.
+
+Tests
+  uv run pytest assignments/harness/tests assignments/assignment_2/tests
+
+Code and final result tables used in the report:
+  https://github.com/Miautawn/ec_2026_assignment_1/tree/016df885cd05c7f0f2609740d51fe99932dc8ffe
+
+The submitted source has no changes to src/ariel. The framework, virtual
+environment, caches, generated videos and earlier assignment are not included.
