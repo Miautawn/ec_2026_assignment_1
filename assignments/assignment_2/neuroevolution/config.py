@@ -139,4 +139,15 @@ SMOKE = ExperimentConfig(
 )
 
 #: The experiment `run_experiment.py` runs. Edit this, then re-run.
-CONFIG = SMOKE
+CONFIG = ExperimentConfig(
+    variants=("random_search", "static_sigma", "self_adaptive"),
+    seeds=tuple(range(9001, 9011)),
+    population_size=30,
+    generations=200,
+    offspring_per_generation=30,
+    static_sigma=0.03,
+    initial_sigma=0.03,
+    sim_duration=15.0,
+    workers=4,
+    **outputs("final_200gen_9001_9010"),
+)
