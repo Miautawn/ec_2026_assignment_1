@@ -1,0 +1,4 @@
+variant,runs,mean,std,min,median,max,mean_final_sigma,mean_final_distance
+random_search,10,2.383,0.044,2.271,2.392,2.425,,0.146
+static_sigma,10,2.186,0.153,1.887,2.22,2.375,0.03,0.447
+self_adaptive,10,2.184,0.17,1.797,2.214,2.431,0.018,0.467
